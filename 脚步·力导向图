@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>脚步 · 意象关系网</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#050510; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#ddd; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em; }
+  .node-label { font-size:14px; color:#fff;
+                text-shadow:0 0 6px #000, 0 0 12px #000, 0 0 4px #000; }
+  .ext-label { font-size:11px; color:#C080FF; font-style:italic;
+               text-shadow:0 0 6px #000, 0 0 12px #000; opacity:0.75; }
+  #legend { position:fixed; right:20px; top:20px; z-index:20;
+            background:rgba(0,0,0,0.55); padding:14px 18px; border-radius:8px;
+            font:12px/1.8 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#888;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px; }
+  #legend .swatch { width:24px; height:2px; border-radius:1px; }
+  #legend .swatch.dash { background: repeating-linear-gradient(to right,
+                        currentColor 0, currentColor 4px, transparent 4px, transparent 7px); }
+  #hud { position:fixed; left:20px; bottom:20px; color:#777;
+         font:11px/1.7 monospace; background:rgba(0,0,0,.5);
+         padding:10px 14px; border-radius:6px; pointer-events:none; z-index:20; }
+  #hud b { color:#ccc; }
+  #title { position:fixed; left:20px; top:20px; z-index:20;
+           font-size:13px; color:#888; letter-spacing:.3em; }
+  #title b { color:#fff; font-weight:500; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="title"><b>脚步</b> · 意象关系网</div>
+<div id="legend">
+  <h4>关系类型</h4>
+  <div class="item"><span class="swatch" style="background:#FFD060"></span><span>承续</span></div>
+  <div class="item"><span class="swatch" style="background:#FF50A0"></span><span>隐喻</span></div>
+  <div class="item"><span class="swatch dash" style="color:#50C8FF"></span><span>对照</span></div>
+  <div class="item"><span class="swatch" style="background:#80FF80"></span><span>感官</span></div>
+  <div class="item"><span class="swatch dash" style="color:#C080FF"></span><span>互文</span></div>
+  <div class="item"><span class="swatch" style="background:#808080;opacity:.5"></span><span>空间共在</span></div>
+</div>
+<div id="hud">
+  <b>拖动</b> 旋转 · <b>滚轮</b> 缩放
+</div>
+<script>
+// ============================================================
+// 节点与关系数据
+// ============================================================
+const NODES = [
+  { id:'蝉声',     region:'inner' },
+  { id:'烦躁',     region:'inner' },
+  { id:'匾额',     region:'china' },
+  { id:'马匹',     region:'china' },
+  { id:'尘埃',     region:'china' },
+  { id:'水湄',     region:'china' },
+  { id:'年龄',     region:'inner' },
+  { id:'沉睡者',   region:'inner' },
+  { id:'巨蟒',     region:'inner' },
+  { id:'宫殿',     region:'china' },
+  { id:'日影',     region:'china' },
+  { id:'盘膝',     region:'inner' },
+  { id:'空白',     region:'inner' },
+  { id:'水瓢',     region:'inner' },
+  { id:'旅人',     region:'inner' },
+  { id:'灰烬',     region:'inner' },
+  { id:'念珠',     region:'inner' },
+  { id:'星月',     region:'future' },
+  { id:'北北西',   region:'future' },
+  { id:'瞭望者',   region:'future' },
+  { id:'森林',     region:'future' },
+  { id:'东方诸星', region:'future' },
+  { id:'月亮偏右', region:'future' },
+  { id:'渡河',     region:'future' },
+];
+
+// type: seq承续 meta隐喻 cont对照 sens感官 inter互文 space空间共在
+const EDGES = [
+  // 承续：诗句顺序
+  { from:'蝉声',     to:'烦躁',     type:'seq' },
+  { from:'烦躁',     to:'匾额',     type:'seq' },
+  { from:'匾额',     to:'马匹',     type:'seq' },
+  { from:'马匹',     to:'尘埃',     type:'seq' },
+  { from:'尘埃',     to:'水湄',     type:'seq' },
+  { from:'水湄',     to:'年龄',     type:'seq' },
+  { from:'年龄',     to:'沉睡者',   type:'seq' },
+  { from:'沉睡者',   to:'巨蟒',     type:'seq' },
+  { from:'巨蟒',     to:'宫殿',     type:'seq' },
+  { from:'宫殿',     to:'日影',     type:'seq' },
+  { from:'日影',     to:'盘膝',     type:'seq' },
+  { from:'盘膝',     to:'空白',     type:'seq' },
+  { from:'空白',     to:'水瓢',     type:'seq' },
+  { from:'水瓢',     to:'旅人',     type:'seq' },
+  { from:'旅人',     to:'灰烬',     type:'seq' },
+  { from:'灰烬',     to:'念珠',     type:'seq' },
+  { from:'念珠',     to:'星月',     type:'seq' },
+  { from:'星月',     to:'北北西',   type:'seq' },
+  { from:'北北西',   to:'瞭望者',   type:'seq' },
+  { from:'瞭望者',   to:'森林',     type:'seq' },
+  { from:'森林',     to:'东方诸星', type:'seq' },
+  { from:'东方诸星', to:'月亮偏右', type:'seq' },
+  { from:'月亮偏右', to:'渡河',     type:'seq' },
+
+  // 隐喻
+  { from:'沉睡者', to:'巨蟒',   type:'meta' },
+  { from:'念珠',   to:'星月',   type:'meta' },
+  { from:'灰烬',   to:'念珠',   type:'meta' },
+
+  // 对照
+  { from:'蝉声',   to:'盘膝',   type:'cont' },
+  { from:'烦躁',   to:'空白',   type:'cont' },
+  { from:'匾额',   to:'北北西', type:'cont' },
+  { from:'宫殿',   to:'森林',   type:'cont' },
+  { from:'水湄',   to:'渡河',   type:'cont' },
+
+  // 感官
+  { from:'蝉声',   to:'烦躁',   type:'sens' },
+  { from:'马匹',   to:'尘埃',   type:'sens' },
+  { from:'水瓢',   to:'旅人',   type:'sens' },
+
+  // 互文（末端会画箭头指向外侧）
+  { from:'马匹',   to:'马齿徒增', type:'inter' },
+  { from:'水瓢',   to:'一瓢饮',   type:'inter' },
+  { from:'念珠',   to:'佛家',     type:'inter' },
+  { from:'北北西', to:'罗盘',     type:'inter' },
+  { from:'瞭望者', to:'西方冒险', type:'inter' },
+  { from:'渡河',   to:'苏东坡',   type:'inter' },
+
+  // 空间共在
+  { from:'匾额',   to:'宫殿',     type:'space' },
+  { from:'匾额',   to:'马匹',     type:'space' },
+  { from:'马匹',   to:'宫殿',     type:'space' },
+  { from:'宫殿',   to:'水湄',     type:'space' },
+  { from:'水湄',   to:'马匹',     type:'space' },
+  { from:'盘膝',   to:'空白',     type:'space' },
+  { from:'盘膝',   to:'水瓢',     type:'space' },
+  { from:'空白',   to:'水瓢',     type:'space' },
+  { from:'念珠',   to:'星月',     type:'space' },
+  { from:'念珠',   to:'灰烬',     type:'space' },
+  { from:'星月',   to:'灰烬',     type:'space' },
+  { from:'北北西', to:'森林',     type:'space' },
+  { from:'北北西', to:'月亮偏右', type:'space' },
+  { from:'森林',   to:'月亮偏右', type:'space' },
+  { from:'森林',   to:'渡河',     type:'space' },
+  { from:'月亮偏右', to:'渡河',   type:'space' },
+];
+
+// 外锚点（互文指向的虚拟位置）
+const EXTERNALS = [
+  { id:'马齿徒增', from:'马匹' },
+  { id:'一瓢饮',   from:'水瓢' },
+  { id:'佛家',     from:'念珠' },
+  { id:'罗盘',     from:'北北西' },
+  { id:'西方冒险', from:'瞭望者' },
+  { id:'苏东坡',   from:'渡河' },
+];
+
+// ============================================================
+// 渲染参数
+// ============================================================
+const STYLE = {
+  seq:   { color:[255, 208,  96], weight:1.6, alpha:120, rest:95  },
+  meta:  { color:[255,  80, 160], weight:2.6, alpha:220, rest:60  },
+  cont:  { color:[ 80, 200, 255], weight:1.2, alpha:150, rest:260, dashed:true },
+  sens:  { color:[128, 255, 128], weight:1.0, alpha:170, rest:70  },
+  inter: { color:[192, 128, 255], weight:1.4, alpha:150, rest:170, dashed:true, arrow:true },
+  space: { color:[130, 130, 150], weight:2.5, alpha:40,  rest:45  },
+};
+
+let nodes = [];
+let nodeMap = {};
+let externals = [];
+let R;
+const labelEls = {};
+
+// ============================================================
+// p5 生命周期
+// ============================================================
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+
+  // 构造节点
+  for (const n of NODES) {
+    nodes.push({
+      id: n.id,
+      region: n.region,
+      pos: initialPos(n.region),
+      vel: createVector(0, 0, 0),
+      fixed: false,
+    });
+  }
+  for (const n of nodes) nodeMap[n.id] = n;
+
+  // 计算布局
+  computeLayout();
+
+  // 外锚点位置（从源节点出发，沿"背离质心"方向外推）
+  for (const e of EXTERNALS) {
+    const src = nodeMap[e.from];
+    const dir = src.pos.copy();
+    if (dir.mag() < 0.01) dir.set(1, 0, 0);
+    dir.normalize();
+    externals.push({
+      id: e.id,
+      from: src,
+      pos: p5.Vector.add(src.pos, dir.mult(240)),
+    });
+  }
+
+  createLabels();
+  camera(0, -100, 900, 0, 0, 0, 0, 1, 0);
+}
+
+function initialPos(region) {
+  // 三个区域给三个初始方向，帮助收敛
+  let dir;
+  if (region === 'inner')      dir = createVector(-1, 0.4, 0);
+  else if (region === 'china') dir = createVector(1, 0.3, 0.5);
+  else                          dir = createVector(0.2, -0.6, -1);
+  dir.normalize();
+  return p5.Vector.add(
+    dir.mult(200),
+    createVector(random(-40, 40), random(-40, 40), random(-40, 40))
+  );
+}
+
+// ============================================================
+// 3D 力导向布局
+// ============================================================
+function computeLayout() {
+  const iterations = 900;
+  const kRep = 9000;      // 斥力系数
+  const kAtt = 0.08;      // 引力系数
+  const damping = 0.82;
+  const jitter = 0.5;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    // 斥力：所有节点两两排斥
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const d = p5.Vector.sub(nodes[i].pos, nodes[j].pos);
+        let dist = d.mag();
+        if (dist < 0.1) { d.set(random(-1,1), random(-1,1), random(-1,1)); dist = 0.1; }
+        const force = d.copy().normalize().mult(kRep / (dist * dist));
+        nodes[i].vel.add(force);
+        nodes[j].vel.sub(force);
+      }
+    }
+
+    // 引力：有边相连的节点互相吸引
+    for (const e of EDGES) {
+      const a = nodeMap[e.from];
+      const b = nodeMap[e.to];
+      if (!a || !b) continue;
+      const s = STYLE[e.type];
+      const d = p5.Vector.sub(b.pos, a.pos);
+      const dist = Math.max(d.mag(), 0.1);
+      const force = d.copy().normalize()
+        .mult(kAtt * (dist - s.rest) * 0.5);
+      a.vel.add(force);
+      b.vel.sub(force);
+    }
+
+    // 轻微抖动，避免陷入对称死锁
+    for (const n of nodes) {
+      n.vel.add(createVector(
+        random(-jitter, jitter),
+        random(-jitter, jitter),
+        random(-jitter, jitter)
+      ));
+    }
+
+    // 应用速度
+    for (const n of nodes) {
+      n.vel.mult(damping);
+      n.pos.add(n.vel);
+    }
+  }
+
+  // 居中
+  const center = createVector(0, 0, 0);
+  for (const n of nodes) center.add(n.pos);
+  center.div(nodes.length);
+  for (const n of nodes) n.pos.sub(center);
+
+  // 全局缩放
+  let maxR = 0;
+  for (const n of nodes) maxR = Math.max(maxR, n.pos.mag());
+  const k = 380 / maxR;
+  for (const n of nodes) n.pos.mult(k);
+}
+
+// ============================================================
+// 渲染循环
+// ============================================================
+function draw() {
+  background(5, 5, 16);
+  orbitControl();
+  ambientLight(255);
+
+  // 空间共在：最底层，淡灰色多边形感的粗线
+  drawEdgesByType('space');
+
+  // 承续：脊柱，暖黄色
+  drawEdgesByType('seq');
+
+  // 感官、隐喻
+  drawEdgesByType('sens');
+  drawEdgesByType('meta');
+
+  // 对照：跨整个网，虚线
+  drawEdgesByType('cont');
+
+  // 互文：指向外部
+  drawInterEdges();
+
+  // 节点
+  for (const n of nodes) {
+    push();
+    translate(n.pos.x, n.pos.y, n.pos.z);
+    noStroke();
+    // 节点用小球：让线条看起来是"穿过"的
+    ambientMaterial(255, 255, 255);
+    sphere(4);
+    // 外发光效果
+    ambientMaterial(200, 220, 255, 40);
+    sphere(9);
+    pop();
+  }
+
+  // HTML 标签
+  updateLabels();
+}
+
+function drawEdgesByType(type) {
+  const s = STYLE[type];
+  stroke(s.color[0], s.color[1], s.color[2], s.alpha);
+  strokeWeight(s.weight);
+  for (const e of EDGES) {
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from];
+    const b = nodeMap[e.to];
+    if (!a || !b) continue;
+    if (s.dashed) {
+      drawDashedLine(a.pos, b.pos, 8, 6);
+    } else {
+      line(a.pos.x, a.pos.y, a.pos.z, b.pos.x, b.pos.y, b.pos.z);
+    }
+  }
+}
+
+function drawInterEdges() {
+  const s = STYLE.inter;
+  stroke(s.color[0], s.color[1], s.color[2], s.alpha);
+  strokeWeight(s.weight);
+  for (const ext of externals) {
+    drawDashedLine(ext.from.pos, ext.pos, 6, 5);
+    // 末端小箭头
+    const dir = p5.Vector.sub(ext.pos, ext.from.pos).normalize();
+    // 画一个小点
+    push();
+    translate(ext.pos.x, ext.pos.y, ext.pos.z);
+    noStroke();
+    ambientMaterial(192, 128, 255, 200);
+    sphere(3);
+    pop();
+  }
+}
+
+function drawDashedLine(a, b, dashLen, gapLen) {
+  const d = p5.Vector.sub(b, a);
+  const len = d.mag();
+  if (len < 0.01) return;
+  const dir = d.copy().normalize();
+  let pos = 0;
+  while (pos < len) {
+    const segEnd = Math.min(pos + dashLen, len);
+    const p1 = p5.Vector.add(a, dir.copy().mult(pos));
+    const p2 = p5.Vector.add(a, dir.copy().mult(segEnd));
+    line(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    pos = segEnd + gapLen;
+  }
+}
+
+// ============================================================
+// HTML 标签
+// ============================================================
+function createLabels() {
+  const container = document.getElementById('labels');
+  container.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+
+  for (const n of nodes) {
+    const el = document.createElement('div');
+    el.className = 'label node-label';
+    el.textContent = n.id;
+    container.appendChild(el);
+    labelEls['node_' + n.id] = el;
+  }
+  for (const ext of externals) {
+    const el = document.createElement('div');
+    el.className = 'label ext-label';
+    el.textContent = ext.id;
+    container.appendChild(el);
+    labelEls['ext_' + ext.id] = el;
+  }
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return {
+    x: ((cx/cw)*0.5+0.5)*width,
+    y: (-(cy/cw)*0.5+0.5)*height,
+    depth: cw,
+  };
+}
+
+function placeLabel(el, sp, yOff = 0) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.35, Math.min(1, 1 - (sp.depth - 500) / 3000));
+  el.style.opacity = a.toFixed(3);
+}
+
+function updateLabels() {
+  for (const n of nodes) {
+    const sp = worldToScreen(n.pos.x, n.pos.y, n.pos.z);
+    const el = labelEls['node_' + n.id];
+    placeLabel(el, sp, -20);
+  }
+  for (const ext of externals) {
+    const sp = worldToScreen(ext.pos.x, ext.pos.y, ext.pos.z);
+    const el = labelEls['ext_' + ext.id];
+    placeLabel(el, sp, -14);
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>
