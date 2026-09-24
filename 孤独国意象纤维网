@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>孤独国 · 意象纤维网</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#030308; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#ddd; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em;
+           transition: color 0.15s; }
+  .node-label { font-size:14px; color:#fff;
+                text-shadow:0 0 6px #000, 0 0 12px #000, 0 0 4px #000; }
+  .node-label.hovered { color:#fff;
+                        text-shadow:0 0 8px #fff, 0 0 20px #fff, 0 0 3px #000; }
+  .node-label.anchor { color:#DCEEFF;
+                       text-shadow:0 0 10px #A0D0F0, 0 0 24px #60A8E0, 0 0 3px #000; }
+  .node-label.buddha { color:#FFE0A0;
+                       text-shadow:0 0 12px #E0A840, 0 0 28px #C08020, 0 0 3px #000;
+                       letter-spacing:.15em; font-weight:600; font-size:15px; }
+  .ext-label { font-size:11px; color:#C080FF; font-style:italic;
+               text-shadow:0 0 6px #000, 0 0 12px #000; opacity:0.7; }
+  #legend { position:fixed; right:20px; top:20px; z-index:20;
+            background:rgba(0,0,0,0.65); padding:14px 18px; border-radius:8px;
+            font:12px/1.9 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px); min-width:150px; }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#888;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px;
+                  padding:3px 8px; margin:0 -8px; border-radius:4px;
+                  cursor:pointer; pointer-events:auto;
+                  transition: background 0.15s; }
+  #legend .item:hover { background:rgba(255,255,255,0.08); }
+  #legend .item.active { background:rgba(255,255,255,0.18); }
+  #legend .item.active .name { color:#fff; font-weight:600; }
+  #legend .item .name { color:#ccc; }
+  #legend .swatch { width:22px; height:2px; border-radius:1px; flex:0 0 auto; }
+  #status { position:fixed; right:20px; top:250px; z-index:20;
+            background:rgba(0,0,0,0.65); padding:10px 16px; border-radius:8px;
+            font:12px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px);
+            opacity:0; transition: opacity 0.2s; }
+  #status.on { opacity:1; }
+  #status .k { color:#888; font-size:11px; letter-spacing:.15em; }
+  #status .v { color:#fff; font-size:14px; font-weight:600; margin-top:2px; }
+  #status .reset { color:#FFD060; font-size:11px; margin-top:6px; cursor:pointer;
+                   pointer-events:auto; letter-spacing:.05em; }
+  #status .reset:hover { text-decoration:underline; }
+  #hud { position:fixed; left:20px; bottom:20px; color:#777;
+         font:11px/1.7 monospace; background:rgba(0,0,0,.5);
+         padding:10px 14px; border-radius:6px; pointer-events:none; z-index:20; }
+  #hud b { color:#ccc; }
+  #title { position:fixed; left:20px; top:20px; z-index:20;
+           font-size:13px; color:#888; letter-spacing:.3em; }
+  #title b { color:#fff; font-weight:500; }
+  #direction { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+               z-index:20; font:12px/1 monospace; color:#666;
+               letter-spacing:.4em; pointer-events:none; }
+  #direction b { color:#FFD060; font-weight:400; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="title"><b>孤独国</b> · 意象纤维网</div>
+<div id="direction">诗 句 方 向  <b>→</b></div>
+<div id="legend">
+  <h4>关系类型</h4>
+  <div class="item" data-type="seq"><span class="swatch" style="background:#FFD060"></span><span class="name">承续</span></div>
+  <div class="item" data-type="cont"><span class="swatch" style="background:#FF50A0"></span><span class="name">对照</span></div>
+  <div class="item" data-type="inter"><span class="swatch" style="background:#C080FF"></span><span class="name">互文</span></div>
+  <div class="item" data-type="space"><span class="swatch" style="background:#A0D0F0"></span><span class="name">雪峰场景</span></div>
+  <div class="item" data-type="buddha"><span class="swatch" style="background:#D2A046"></span><span class="name">佛家底色</span></div>
+</div>
+<div id="status">
+  <div class="k">当前查看</div>
+  <div class="v" id="status-val"></div>
+  <div class="reset" id="status-reset">✕ 清除筛选</div>
+</div>
+<div id="hud">
+  <b>拖动</b> 旋转 · <b>滚轮</b> 缩放<br>
+  <b>点击词</b> 看它的关系 · <b>点击图例</b> 看这类线<br>
+  <b>空格</b> 重排 · <b>Esc</b> 清除
+</div>
+<script>
+// ============================================================
+// 节点（诗句出现顺序 + 两个特殊锚点）
+// ============================================================
+const NODES = [
+  { id:'趺坐',              region:'body'   },
+  { id:'负雪山峰',          region:'anchor' },
+  { id:'黏的气候',          region:'scene'  },
+  { id:'天鹅绒的雪',        region:'scene'  },
+  { id:'嬲骚的市声',        region:'void'   },
+  { id:'时间的反刍',        region:'inner'  },
+  { id:'蛇·猫头鹰·人面兽',  region:'void'   },
+  { id:'曼陀罗花',          region:'garden' },
+  { id:'橄榄树',            region:'garden' },
+  { id:'玉蝴蝶',            region:'garden' },
+  { id:'文字·经纬·千佛',    region:'void'   },
+  { id:'沉默的力',          region:'inner'  },
+  { id:'白昼如夜',          region:'time'   },
+  { id:'绮丽的夜',          region:'time'   },
+  { id:'寒冷如酒',          region:'scene'  },
+  { id:'诗和美',            region:'inner'  },
+  { id:'虚空手谈',          region:'void'   },
+  { id:'忘言的繁星',        region:'scene'  },
+  { id:'过去',              region:'time'   },
+  { id:'未来',              region:'time'   },
+  { id:'现在',              region:'body'   },
+  { id:'佛家',              region:'buddha' },   // 精神锚点
+];
+
+const EDGES = [
+  // 承续
+  { from:'趺坐',             to:'负雪山峰',         type:'seq' },
+  { from:'负雪山峰',         to:'黏的气候',         type:'seq' },
+  { from:'黏的气候',         to:'天鹅绒的雪',       type:'seq' },
+  { from:'天鹅绒的雪',       to:'嬲骚的市声',       type:'seq' },
+  { from:'嬲骚的市声',       to:'时间的反刍',       type:'seq' },
+  { from:'时间的反刍',       to:'蛇·猫头鹰·人面兽', type:'seq' },
+  { from:'蛇·猫头鹰·人面兽', to:'曼陀罗花',         type:'seq' },
+  { from:'曼陀罗花',         to:'橄榄树',           type:'seq' },
+  { from:'橄榄树',           to:'玉蝴蝶',           type:'seq' },
+  { from:'玉蝴蝶',           to:'文字·经纬·千佛',   type:'seq' },
+  { from:'文字·经纬·千佛',   to:'沉默的力',         type:'seq' },
+  { from:'沉默的力',         to:'白昼如夜',         type:'seq' },
+  { from:'白昼如夜',         to:'绮丽的夜',         type:'seq' },
+  { from:'绮丽的夜',         to:'寒冷如酒',         type:'seq' },
+  { from:'寒冷如酒',         to:'诗和美',           type:'seq' },
+  { from:'诗和美',           to:'虚空手谈',         type:'seq' },
+  { from:'虚空手谈',         to:'忘言的繁星',       type:'seq' },
+  { from:'忘言的繁星',       to:'过去',             type:'seq' },
+  { from:'过去',             to:'未来',             type:'seq' },
+  { from:'未来',             to:'现在',             type:'seq' },
+
+  // 对照
+  { from:'嬲骚的市声',       to:'时间的反刍',       type:'cont' },
+  { from:'蛇·猫头鹰·人面兽', to:'曼陀罗花',         type:'cont' },
+  { from:'蛇·猫头鹰·人面兽', to:'橄榄树',           type:'cont' },
+  { from:'蛇·猫头鹰·人面兽', to:'玉蝴蝶',           type:'cont' },
+  { from:'文字·经纬·千佛',   to:'沉默的力',         type:'cont' },
+  { from:'白昼如夜',         to:'绮丽的夜',         type:'cont' },
+  { from:'过去',             to:'未来',             type:'cont' },
+  { from:'过去',             to:'现在',             type:'cont' },
+  { from:'未来',             to:'现在',             type:'cont' },
+
+  // 互文（指向诗外）
+  { from:'橄榄树',           to:'圣经',             type:'inter' },
+  { from:'玉蝴蝶',           to:'庄周',             type:'inter' },
+
+  // 雪峰场景锚：从"负雪山峰"连向所有其它意象
+  { from:'负雪山峰',         to:'趺坐',             type:'space' },
+  { from:'负雪山峰',         to:'黏的气候',         type:'space' },
+  { from:'负雪山峰',         to:'天鹅绒的雪',       type:'space' },
+  { from:'负雪山峰',         to:'嬲骚的市声',       type:'space' },
+  { from:'负雪山峰',         to:'时间的反刍',       type:'space' },
+  { from:'负雪山峰',         to:'蛇·猫头鹰·人面兽', type:'space' },
+  { from:'负雪山峰',         to:'曼陀罗花',         type:'space' },
+  { from:'负雪山峰',         to:'橄榄树',           type:'space' },
+  { from:'负雪山峰',         to:'玉蝴蝶',           type:'space' },
+  { from:'负雪山峰',         to:'文字·经纬·千佛',   type:'space' },
+  { from:'负雪山峰',         to:'沉默的力',         type:'space' },
+  { from:'负雪山峰',         to:'白昼如夜',         type:'space' },
+  { from:'负雪山峰',         to:'绮丽的夜',         type:'space' },
+  { from:'负雪山峰',         to:'寒冷如酒',         type:'space' },
+  { from:'负雪山峰',         to:'诗和美',           type:'space' },
+  { from:'负雪山峰',         to:'虚空手谈',         type:'space' },
+  { from:'负雪山峰',         to:'忘言的繁星',       type:'space' },
+  { from:'负雪山峰',         to:'过去',             type:'space' },
+  { from:'负雪山峰',         to:'未来',             type:'space' },
+  { from:'负雪山峰',         to:'现在',             type:'space' },
+
+  // 佛家底色：从被渗透的意象汇聚向"佛家"
+  { from:'趺坐',             to:'佛家',             type:'buddha' },
+  { from:'曼陀罗花',         to:'佛家',             type:'buddha' },
+  { from:'文字·经纬·千佛',   to:'佛家',             type:'buddha' },
+  { from:'虚空手谈',         to:'佛家',             type:'buddha' },
+  { from:'时间的反刍',       to:'佛家',             type:'buddha' },
+  { from:'沉默的力',         to:'佛家',             type:'buddha' },
+  { from:'忘言的繁星',       to:'佛家',             type:'buddha' },
+  { from:'过去',             to:'佛家',             type:'buddha' },
+  { from:'未来',             to:'佛家',             type:'buddha' },
+  { from:'现在',             to:'佛家',             type:'buddha' },
+];
+
+const EXTERNALS = [
+  { id:'圣经', from:'橄榄树', dir:[ 0, -1.0, 0.8] },
+  { id:'庄周', from:'玉蝴蝶', dir:[ 0, -1.0,-0.5] },
+];
+
+const TYPE_LABEL = {
+  seq:'承续', cont:'对照', inter:'互文',
+  space:'雪峰场景', buddha:'佛家底色',
+};
+
+const STYLE = {
+  seq:    { color:[255, 208,  96], weight:1.4, alpha:110, bend:0.10 },
+  cont:   { color:[255,  80, 160], weight:1.6, alpha:200, bend:0.32 },
+  inter:  { color:[192, 128, 255], weight:1.2, alpha:140, bend:0.35 },
+  space:  { color:[160, 208, 232], weight:0.9, alpha:42,  bend:0.45 },
+  buddha: { color:[210, 160,  70], weight:1.4, alpha:150, bend:0.28 },
+};
+
+const X_SPACING = 76;
+const REPEL_K = 20000;
+const ATTRACT_K = 0.010;
+const YZ_ITER = 700;
+const REST_LEN = {
+  seq: 55, cont: 130, inter: 90, space: 220, buddha: 260,
+};
+
+let filter = { type: null, node: null };
+let hoveredNodeId = null;
+let mouseScreen = { x: -99999, y: -99999 };
+let mouseDownPos = null;
+let cachedScreen = {};
+let canvasEl;
+
+let nodes = [];
+let nodeMap = {};
+let externals = [];
+let R;
+const labelEls = {};
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  canvasEl = c.elt;
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+
+  const N = NODES.length;
+  const cx = (N - 1) / 2;
+  for (let i = 0; i < N; i++) {
+    const n = NODES[i];
+    let x0, y0, z0;
+    if (n.region === 'buddha') {
+      // 佛家：X 轴中央、下方远端
+      x0 = 0;
+      y0 = 520;
+      z0 = 0;
+    } else {
+      x0 = (i - cx) * X_SPACING;
+      if (n.region === 'anchor')      { y0 =   0; z0 =   0; }
+      else if (n.region === 'body')   { y0 = -20; z0 = 120; }
+      else if (n.region === 'scene')  { y0 =  80; z0 =  50; }
+      else if (n.region === 'void')   { y0 = -80; z0 = -70; }
+      else if (n.region === 'garden') { y0 =  90; z0 = -60; }
+      else if (n.region === 'inner')  { y0 = -80; z0 =  60; }
+      else if (n.region === 'time')   { y0 =  20; z0 = -100; }
+      y0 += random(-80, 80);
+      z0 += random(-80, 80);
+    }
+    nodes.push({
+      id: n.id, region: n.region, order: i,
+      x: x0, y: y0, z: z0,
+      vy: 0, vz: 0,
+    });
+  }
+  for (const n of nodes) nodeMap[n.id] = n;
+
+  computeYZLayout();
+  buildExternals();
+  createLabels();
+  bindInteractions();
+  bindLegendClicks();
+
+  camera(0, -150, 1700, 0, 60, 0, 0, 1, 0);
+}
+
+function buildExternals() {
+  externals = [];
+  for (const e of EXTERNALS) {
+    const src = nodeMap[e.from];
+    const d = createVector(e.dir[0], e.dir[1], e.dir[2]).normalize();
+    externals.push({
+      id: e.id, from: src,
+      pos: createVector(src.x + d.x * 30, src.y + d.y * 220, src.z + d.z * 220),
+    });
+  }
+}
+
+function bindInteractions() {
+  canvasEl.addEventListener('mousemove', e => {
+    const rect = canvasEl.getBoundingClientRect();
+    mouseScreen.x = e.clientX - rect.left;
+    mouseScreen.y = e.clientY - rect.top;
+  });
+  canvasEl.addEventListener('mouseleave', () => {
+    mouseScreen.x = -99999; mouseScreen.y = -99999;
+    hoveredNodeId = null;
+  });
+  canvasEl.addEventListener('mousedown', e => {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+  canvasEl.addEventListener('mouseup', e => {
+    if (!mouseDownPos) return;
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.hypot(dx, dy) < 5) handleCanvasClick(e.clientX, e.clientY);
+    mouseDownPos = null;
+  });
+}
+
+function bindLegendClicks() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.type;
+      filter.type = (filter.type === t) ? null : t;
+      filter.node = null;
+      updateLegendActive();
+      updateStatus();
+    });
+  });
+  document.getElementById('status-reset').addEventListener('click', () => {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  });
+}
+
+function handleCanvasClick(clientX, clientY) {
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  let bestId = null, bestDist = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mx, sp.y - my);
+    if (d < bestDist) { bestDist = d; bestId = id; }
+  }
+  if (bestId) {
+    filter.node = (filter.node === bestId) ? null : bestId;
+    filter.type = null;
+  } else {
+    filter.type = null; filter.node = null;
+  }
+  updateLegendActive();
+  updateStatus();
+}
+
+function updateLegendActive() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === filter.type);
+  });
+}
+
+function updateStatus() {
+  const s = document.getElementById('status');
+  const v = document.getElementById('status-val');
+  if (!filter.type && !filter.node) { s.classList.remove('on'); return; }
+  s.classList.add('on');
+  if (filter.type) v.textContent = TYPE_LABEL[filter.type];
+  if (filter.node) v.textContent = filter.node;
+}
+
+const DIM = 0.08;
+const NODE_DIM = 0.10;
+const NODE_NEIGHBOR = 0.9;
+
+function getEdgeAlpha(e) {
+  const base = STYLE[e.type].alpha;
+  if (filter.type && e.type !== filter.type) return base * DIM;
+  if (filter.node && e.from !== filter.node && e.to !== filter.node) return base * DIM;
+  return base;
+}
+
+function getNodeAlpha(id) {
+  if (filter.type) {
+    const touched = EDGES.some(e =>
+      e.type === filter.type && (e.from === id || e.to === id));
+    return touched ? 1 : NODE_DIM;
+  }
+  if (filter.node) {
+    if (id === filter.node) return 1;
+    const adjacent = EDGES.some(e =>
+      (e.from === id && e.to === filter.node) ||
+      (e.to === id && e.from === filter.node));
+    return adjacent ? NODE_NEIGHBOR : NODE_DIM;
+  }
+  return 1;
+}
+
+function getExtAlpha(ext) {
+  if (filter.type && filter.type !== 'inter') return 0.06;
+  if (filter.node && ext.from.id !== filter.node) return 0.06;
+  return 1;
+}
+
+function computeYZLayout() {
+  // 只对非佛家节点跑力导向；佛家节点固定不动
+  const movable = nodes.filter(n => n.region !== 'buddha');
+  const buddhaNode = nodeMap['佛家'];
+
+  for (let iter = 0; iter < YZ_ITER; iter++) {
+    // 斥力
+    for (let i = 0; i < movable.length; i++) {
+      for (let j = i + 1; j < movable.length; j++) {
+        const a = movable[i], b = movable[j];
+        let dy = b.y - a.y, dz = b.z - a.z;
+        let dist = Math.sqrt(dy*dy + dz*dz);
+        if (dist < 0.5) { dy += random(-1,1); dz += random(-1,1); dist = 0.5; }
+        const f = REPEL_K / (dist * dist);
+        const uy = dy/dist, uz = dz/dist;
+        a.vy -= uy*f; a.vz -= uz*f;
+        b.vy += uy*f; b.vz += uz*f;
+      }
+    }
+    // 引力（只作用在 movable 上；若另一端是佛家节点，也算）
+    for (const e of EDGES) {
+      const a = nodeMap[e.from], b = nodeMap[e.to];
+      if (!a || !b) continue;
+      if (a.region === 'buddha' && b.region === 'buddha') continue;
+      const rest = REST_LEN[e.type];
+      let dy = b.y - a.y, dz = b.z - a.z;
+      let dist = Math.sqrt(dy*dy + dz*dz);
+      if (dist < 0.5) dist = 0.5;
+      const uy = dy/dist, uz = dz/dist;
+      const isAdjacent = Math.abs(a.order - b.order) === 1;
+      const k = isAdjacent ? ATTRACT_K*3 : ATTRACT_K;
+      const f = k * (dist - rest);
+      // 只让 movable 的一侧移动
+      if (a.region !== 'buddha') { a.vy += uy*f*0.5; a.vz += uz*f*0.5; }
+      if (b.region !== 'buddha') { b.vy -= uy*f*0.5; b.vz -= uz*f*0.5; }
+    }
+    // 阻尼 + 抖动
+    for (const n of movable) {
+      n.vy *= 0.85; n.vz *= 0.85;
+      n.vy += random(-0.15, 0.15);
+      n.vz += random(-0.15, 0.15);
+      n.y += n.vy; n.z += n.vz;
+    }
+  }
+  // 只对 movable 做居中
+  let cy = 0, cz = 0;
+  for (const n of movable) { cy += n.y; cz += n.z; }
+  cy /= movable.length; cz /= movable.length;
+  for (const n of movable) { n.y -= cy; n.z -= cz; }
+}
+
+function draw() {
+  background(3, 3, 8);
+  orbitControl();
+  ambientLight(255);
+
+  updateHoverFromCache();
+
+  drawCurvedEdges('space');
+  drawCurvedEdges('buddha');
+  drawCurvedEdges('seq');
+  drawCurvedEdges('cont');
+  drawInterEdges();
+
+  for (const n of nodes) {
+    const a = getNodeAlpha(n.id);
+    const isHover = (n.id === hoveredNodeId);
+    push();
+    translate(n.x, n.y, n.z);
+    noStroke();
+    if (n.region === 'anchor') {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 7 : 5);
+      ambientMaterial(160, 208, 240, 90 * a);
+      sphere(isHover ? 20 : 16);
+      ambientMaterial(140, 190, 230, 40 * a);
+      sphere(28);
+    } else if (n.region === 'buddha') {
+      // 琥珀金三层光晕
+      ambientMaterial(255, 230, 170, 255 * a);
+      sphere(isHover ? 9 : 7);
+      ambientMaterial(230, 180, 90, 110 * a);
+      sphere(isHover ? 24 : 20);
+      ambientMaterial(210, 150, 60, 50 * a);
+      sphere(34);
+    } else {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 5.5 : 3.5);
+      ambientMaterial(180, 200, 255, 55 * a);
+      sphere(isHover ? 12 : 8);
+    }
+    pop();
+  }
+
+  updateLabels();
+}
+
+function updateHoverFromCache() {
+  if (mouseScreen.x < -1000) { hoveredNodeId = null; return; }
+  let best = null, bestD = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mouseScreen.x, sp.y - mouseScreen.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  hoveredNodeId = best;
+}
+
+function drawCurvedEdges(type) {
+  const s = STYLE[type];
+  noFill();
+  for (let ei = 0; ei < EDGES.length; ei++) {
+    const e = EDGES[ei];
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    const dir = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir.copy().mult(perp.dot(dir)));
+    if (perp.mag() < 0.01) perp.set(0, 1, 0);
+    perp.normalize();
+    const side = (ei % 2 === 0) ? 1 : -1;
+    const ctrl = p5.Vector.add(mid, perp.mult(s.bend * segLen * side));
+
+    const steps = Math.max(16, Math.floor(segLen / 8));
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawInterEdges() {
+  const s = STYLE.inter;
+  noFill();
+  for (const ext of externals) {
+    const alpha = getExtAlpha(ext) * s.alpha;
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+
+    const A = createVector(ext.from.x, ext.from.y, ext.from.z);
+    const B = ext.pos;
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    const dir = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir.copy().mult(perp.dot(dir)));
+    if (perp.mag() < 0.01) perp.set(1, 0, 0);
+    perp.normalize();
+    const ctrl = p5.Vector.add(p5.Vector.add(A, B).mult(0.5), perp.mult(segLen * 0.15));
+
+    const steps = 24;
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+
+    push();
+    translate(B.x, B.y, B.z);
+    noStroke();
+    ambientMaterial(192, 128, 255, 200 * getExtAlpha(ext));
+    sphere(2.5);
+    pop();
+  }
+}
+
+function createLabels() {
+  const container = document.getElementById('labels');
+  container.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+  for (const n of nodes) {
+    const el = document.createElement('div');
+    let cls = 'label node-label';
+    if (n.region === 'anchor') cls += ' anchor';
+    if (n.region === 'buddha') cls += ' buddha';
+    el.className = cls;
+    el.textContent = n.id;
+    container.appendChild(el);
+    labelEls['node_' + n.id] = el;
+  }
+  for (const ext of externals) {
+    const el = document.createElement('div');
+    el.className = 'label ext-label';
+    el.textContent = ext.id;
+    container.appendChild(el);
+    labelEls['ext_' + ext.id] = el;
+  }
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return {
+    x: ((cx/cw)*0.5+0.5)*width,
+    y: (-(cy/cw)*0.5+0.5)*height,
+    depth: cw,
+  };
+}
+
+function placeLabel(el, sp, yOff = 0, extra = 1) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.4, Math.min(1, 1 - (sp.depth - 600) / 3800));
+  el.style.opacity = (a * extra).toFixed(3);
+}
+
+function updateLabels() {
+  cachedScreen = {};
+  for (const n of nodes) {
+    const sp = worldToScreen(n.x, n.y, n.z);
+    cachedScreen[n.id] = sp;
+    const el = labelEls['node_' + n.id];
+    el.classList.toggle('hovered', n.id === hoveredNodeId);
+    placeLabel(el, sp, -18, getNodeAlpha(n.id));
+  }
+  for (const ext of externals) {
+    const sp = worldToScreen(ext.pos.x, ext.pos.y, ext.pos.z);
+    placeLabel(labelEls['ext_' + ext.id], sp, -12, getExtAlpha(ext) * 0.85);
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    for (const n of nodes) {
+      if (n.region === 'buddha') continue;
+      let y0 = 0, z0 = 0;
+      if (n.region === 'anchor')      { y0 =   0; z0 =   0; }
+      else if (n.region === 'body')   { y0 = -20; z0 = 120; }
+      else if (n.region === 'scene')  { y0 =  80; z0 =  50; }
+      else if (n.region === 'void')   { y0 = -80; z0 = -70; }
+      else if (n.region === 'garden') { y0 =  90; z0 = -60; }
+      else if (n.region === 'inner')  { y0 = -80; z0 =  60; }
+      else if (n.region === 'time')   { y0 =  20; z0 = -100; }
+      n.y = y0 + random(-100, 100);
+      n.z = z0 + random(-100, 100);
+      n.vy = 0; n.vz = 0;
+    }
+    computeYZLayout();
+    buildExternals();
+  }
+  if (keyCode === 27) {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>
