@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>四诗对比 · 脚步 / 孤独国 / 崖上 / 水仙花</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#050510; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#ddd; }
+  .app { display:flex; height:100vh; }
+  .scene { flex:0 0 52%; position:relative; overflow:hidden; }
+  .scene canvas { display:block; }
+  .panel { flex:1; background:#08081a; border-left:1px solid #1a1a30;
+           padding:16px 20px 40px; overflow-y:auto; }
+  .panel h2 { font-size:11px; color:#666; letter-spacing:.25em; margin:0 0 10px;
+              text-transform:uppercase; font-weight:500; }
+  .panel h2:not(:first-child) { margin-top:22px; }
+  canvas.chart { width:100%; display:block;
+                 background:rgba(255,255,255,0.015); border-radius:6px; }
+  #parallel-canvas { height:210px; }
+  #function-canvas { height:250px; cursor:crosshair; }
+  #correlations { font-size:12px; }
+  .corr-block { margin-bottom:10px; padding:9px 12px; border-radius:6px;
+                background:rgba(255,255,255,0.025); }
+  .corr-title { font-size:12px; margin-bottom:6px; font-weight:600; }
+  .corr-row { display:flex; justify-content:space-between; padding:1px 0;
+              font-family:monospace; font-size:11px; color:#999; }
+  .corr-row.total { border-top:1px solid rgba(255,255,255,0.08);
+                    margin-top:5px; padding-top:5px; color:#fff; font-weight:600; }
+  .corr-row .badge { font-size:10px; padding:1px 5px; border-radius:3px;
+                     margin-left:6px; }
+  #fingerprints { font-size:12px; }
+  .fp-poem { margin-bottom:12px; padding:10px 13px; border-radius:6px;
+             background:rgba(255,255,255,0.02); border-left:3px solid; }
+  .fp-poem h3 { margin:0 0 6px; font-size:12px; font-weight:600; }
+  .fp-row { display:flex; justify-content:space-between; padding:1px 0;
+            font-family:monospace; font-size:11px; }
+  .fp-row .k { color:#666; }
+  .fp-row .v { color:#fff; }
+  .fp-row.bar { align-items:center; gap:8px; }
+  .fp-bar { flex:1; height:4px; background:rgba(255,255,255,0.08);
+            border-radius:2px; overflow:hidden; }
+  .fp-bar i { display:block; height:100%; border-radius:2px; }
+  #labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  .img-label { font-size:12px; font-weight:500; }
+  .axis-label { font-size:14px; font-weight:700; letter-spacing:.15em;
+                text-shadow:0 0 8px currentColor, 0 0 16px currentColor, 0 0 3px #000; }
+  .hover-label { font-size:13px; font-weight:700; color:#fff;
+                 text-shadow:0 0 8px #fff, 0 0 3px #000;
+                 background:rgba(0,0,0,0.5); padding:2px 7px; border-radius:3px; }
+  #hud { position:absolute; left:16px; bottom:16px; color:#888;
+         font:11px/1.7 monospace; background:rgba(0,0,0,.5);
+         padding:9px 14px; border-radius:6px; pointer-events:none; z-index:20; }
+  #hud b { color:#ddd; }
+  .legend { position:absolute; right:16px; top:16px; z-index:20;
+            background:rgba(0,0,0,.55); padding:10px 14px; border-radius:6px;
+            font:11px/1.7 monospace; pointer-events:none; }
+  .legend .item { display:flex; align-items:center; gap:8px; }
+  .legend .dot { width:8px; height:8px; border-radius:50%; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="scene" id="scene">
+    <div id="labels"></div>
+    <div id="hud">
+      <b>1/2/3/4</b> 聚焦某诗 · <b>0</b> 叠加全部<br>
+      <b>L</b> 显示/隐藏轨迹线 · <b>空格</b> 暂停 · <b>← →</b> 调速<br>
+      <b>拖动/滚轮</b> 旋转缩放 · <b>悬停曲线</b> 联动高亮
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="panel">
+    <h2>平行坐标 · 形状对比</h2>
+    <canvas id="parallel-canvas" class="chart"></canvas>
+    <h2>函数视图 · 走势对比</h2>
+    <canvas id="function-canvas" class="chart"></canvas>
+    <h2>相关性</h2>
+    <div id="correlations"></div>
+    <h2>指纹</h2>
+    <div id="fingerprints"></div>
+  </div>
+</div>
+<script>
+// ============================================================
+const DIMS = [
+  { id:'inward',   name:'内向 ↔ 外向',  color:'#FFB450', hue:35,
+    axisPos:'内向', axisNeg:'外向', dir:[ 1, 0, 0] },
+  { id:'tense',    name:'静 ↔ 动',     color:'#FF5098', hue:330,
+    axisPos:'动',   axisNeg:'静',   dir:[ 0, 1, 0] },
+  { id:'abstract', name:'具象 ↔ 抽象', color:'#50B4FF', hue:200,
+    axisPos:'抽象', axisNeg:'具象', dir:[ 0, 0, 1] },
+];
+
+const POEMS = [
+  { title:'脚步（杨牧）', hue:45, images:[
+    { name:'蝉声',     inward: 0.5, tense: 0.3, abstract: 0.4 },
+    { name:'烦躁',     inward: 0.8, tense: 0.7, abstract: 0.6 },
+    { name:'匾额',     inward:-0.3, tense:-0.6, abstract:-0.7 },
+    { name:'马匹',     inward:-0.2, tense: 0.9, abstract:-0.6 },
+    { name:'尘埃',     inward:-0.1, tense: 0.2, abstract:-0.5 },
+    { name:'水湄',     inward: 0.2, tense:-0.4, abstract:-0.5 },
+    { name:'年龄',     inward: 0.7, tense:-0.2, abstract: 0.8 },
+    { name:'沉睡者',   inward: 0.9, tense:-0.9, abstract: 0.5 },
+    { name:'巨蟒',     inward: 0.3, tense: 0.8, abstract: 0.6 },
+    { name:'宫殿',     inward:-0.5, tense:-0.7, abstract:-0.7 },
+    { name:'日影',     inward: 0.1, tense:-0.1, abstract:-0.3 },
+    { name:'盘膝',     inward: 1.0, tense:-1.0, abstract: 0.4 },
+    { name:'空白',     inward: 0.8, tense:-0.5, abstract: 1.0 },
+    { name:'水瓢',     inward: 0.1, tense:-0.6, abstract:-0.7 },
+    { name:'旅人',     inward: 0.4, tense: 0.3, abstract: 0.1 },
+    { name:'灰烬',     inward: 0.6, tense:-0.3, abstract: 0.7 },
+    { name:'念珠',     inward: 0.9, tense:-0.7, abstract: 0.5 },
+    { name:'星月',     inward: 0.2, tense: 0.1, abstract: 0.6 },
+    { name:'北北西',   inward:-0.4, tense: 0.4, abstract:-0.2 },
+    { name:'瞭望者',   inward:-0.1, tense: 0.6, abstract: 0.3 },
+    { name:'森林',     inward:-0.5, tense: 0.1, abstract:-0.6 },
+    { name:'东方诸星', inward:-0.3, tense: 0.4, abstract: 0.7 },
+    { name:'月亮偏右', inward:-0.4, tense: 0.3, abstract: 0.0 },
+    { name:'渡河',     inward:-0.6, tense: 1.0, abstract: 0.0 },
+  ]},
+  { title:'孤独国（周梦蝶）', hue:260, images:[
+    { name:'负雪的山峰',  inward: 0.3, tense:-0.6, abstract:-0.3 },
+    { name:'雪',         inward: 0.2, tense:-0.5, abstract:-0.4 },
+    { name:'黏的气候',    inward: 0.5, tense:-0.4, abstract: 0.4 },
+    { name:'时间反刍',    inward: 0.4, tense:-0.8, abstract: 1.0 },
+    { name:'曼陀罗花',    inward: 0.2, tense:-0.4, abstract: 0.0 },
+    { name:'玉蝴蝶',      inward: 0.2, tense:-0.3, abstract:-0.1 },
+    { name:'沉默的力',    inward: 0.5, tense:-0.3, abstract: 1.0 },
+    { name:'白昼如夜',    inward: 0.4, tense:-0.5, abstract: 0.7 },
+    { name:'绮丽之夜',    inward: 0.4, tense:-0.5, abstract: 0.8 },
+    { name:'寒冷如酒',    inward: 0.6, tense:-0.3, abstract: 0.8 },
+    { name:'虚空手谈',    inward: 0.3, tense:-0.7, abstract: 1.0 },
+    { name:'忘言的繁星',  inward: 0.3, tense:-0.4, abstract: 0.5 },
+    { name:'现在的我',    inward: 0.9, tense: 0.2, abstract: 0.8 },
+  ]},
+  { title:'崖上（杨牧）', hue:130, images:[
+    { name:'葵花满开的崖上', inward: 0.3, tense:-0.5, abstract:-0.5 },
+    { name:'早来的鹧鸪',     inward: 0.2, tense: 0.3, abstract:-0.5 },
+    { name:'远山云',         inward: 0.0, tense:-0.4, abstract:-0.3 },
+    { name:'泉水滴落',       inward: 0.3, tense:-0.3, abstract:-0.4 },
+    { name:'伐木声',         inward: 0.0, tense: 0.5, abstract:-0.2 },
+    { name:'郁郁森林',       inward: 0.0, tense: 0.4, abstract:-0.3 },
+    { name:'罗马石柱刀枪',   inward:-0.5, tense: 0.7, abstract:-0.3 },
+    { name:'野狼化人',       inward:-0.3, tense: 0.6, abstract: 0.3 },
+    { name:'渡海黄金海岸',   inward:-0.6, tense: 0.8, abstract: 0.0 },
+    { name:'乡愁',           inward: 0.7, tense:-0.2, abstract: 0.8 },
+    { name:'懒懒躺着',       inward: 0.8, tense:-0.7, abstract: 0.3 },
+    { name:'静静地苍老',     inward: 0.6, tense:-0.6, abstract: 0.7 },
+  ]},
+  { title:'水仙花（杨牧）', hue:320, images:[
+    { name:'过去的星子',  inward: 0.6, tense:-0.3, abstract: 0.6 },
+    { name:'争执',        inward: 0.7, tense: 0.4, abstract: 0.2 },
+    { name:'催眠曲',      inward: 0.6, tense:-0.5, abstract: 0.3 },
+    { name:'流萤',        inward: 0.4, tense: 0.1, abstract:-0.2 },
+    { name:'荒山野渡',    inward:-0.2, tense:-0.4, abstract:-0.4 },
+    { name:'共楫一舟',    inward: 0.5, tense: 0.3, abstract:-0.3 },
+    { name:'时间的长流',  inward: 0.2, tense: 0.3, abstract: 1.0 },
+    { name:'七洋',        inward: 0.0, tense: 0.5, abstract:-0.1 },
+    { name:'千载一梦',    inward: 0.5, tense:-0.3, abstract: 1.0 },
+    { name:'两鬓星华',    inward: 0.7, tense:-0.4, abstract: 0.3 },
+    { name:'水仙自照',    inward: 0.9, tense:-0.6, abstract: 0.5 },
+    { name:'发黄的信札',  inward: 0.8, tense:-0.3, abstract: 0.5 },
+  ]},
+];
+
+const TARGET_RADIUS = 120;
+const AXIS_LEN = 1.4;     // 正负方向各延伸这么多（对称）
+const RESAMPLE_N = 100;
+let mode = 'overlay';
+let focusIndex = 0;
+let t = 0;
+let playing = true;
+let speed = 0.0006;
+let showTrails = true;
+let R;
+const labelEls = {};
+let hover = { active:false, t:0 };
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(scene.offsetWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+  for (const poem of POEMS) processPoem(poem);
+  camera(0, -300, 700, 0, 0, 0, 0, 1, 0);
+  createLabels();
+  drawParallelChart();
+  drawFunctionChart();
+  updateFingerprintPanel();
+  updateCorrelations();
+  updateLegend();
+
+  const fCanvas = document.getElementById('function-canvas');
+  fCanvas.addEventListener('mousemove', e => {
+    const rect = fCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pad = { left:40, right:20 };
+    const chartW = rect.width - pad.left - pad.right;
+    let tt = (x - pad.left) / chartW;
+    hover.active = true;
+    hover.t = Math.max(0, Math.min(1, tt));
+    drawFunctionChart();
+  });
+  fCanvas.addEventListener('mouseleave', () => {
+    hover.active = false;
+    drawFunctionChart();
+  });
+}
+
+function processPoem(poem) {
+  for (const img of poem.images) {
+    img.raw = createVector(img.inward, img.tense, img.abstract);
+  }
+  const c = createVector(0, 0, 0);
+  for (const img of poem.images) c.add(img.raw);
+  c.div(poem.images.length);
+  let maxR = 0;
+  for (const img of poem.images) {
+    img.centered = p5.Vector.sub(img.raw, c);
+    const r = img.centered.mag();
+    if (r > maxR) maxR = r;
+  }
+  const k = maxR > 0 ? TARGET_RADIUS / maxR : 1;
+  for (const img of poem.images) img.pos = p5.Vector.mult(img.centered, k);
+  poem.fp = computeFingerprint(poem);
+}
+
+function computeFingerprint(poem) {
+  const n = poem.images.length;
+  let mi = 0, mt = 0, ma = 0;
+  for (const img of poem.images) { mi += img.inward; mt += img.tense; ma += img.abstract; }
+  mi /= n; mt /= n; ma /= n;
+  let pathLen = 0;
+  for (let i = 1; i < n; i++) {
+    pathLen += p5.Vector.dist(poem.images[i-1].pos, poem.images[i].pos);
+  }
+  const ends = p5.Vector.dist(poem.images[0].pos, poem.images[n-1].pos);
+  const winding = ends > 1 ? pathLen / ends : pathLen;
+  let sumR = 0;
+  for (const img of poem.images) sumR += img.pos.mag();
+  return { n, mi, mt, ma, meanRadius: sumR / n, winding };
+}
+
+function draw() {
+  background(5, 5, 16);
+  orbitControl();
+  ambientLight(255);
+  const show = mode === 'focus' ? [focusIndex] : POEMS.map((_, i) => i);
+  const poemT = t;
+
+  let hoverInfo = null;
+  if (hover.active) {
+    hoverInfo = show.map(pi => {
+      const n = POEMS[pi].images.length;
+      return { pi, idx: Math.round(hover.t * (n - 1)) };
+    });
+  }
+
+  drawAxes();
+  for (const pi of show) {
+    drawPoemTrails(POEMS[pi], pi, poemT);
+  }
+  updateLabels(show, poemT, hoverInfo);
+
+  if (playing) { t += speed; if (t > 1) t = 0; }
+}
+
+// 轴线：两端对称，同一长度、同一透明度
+function drawAxes() {
+  push();
+  const L = TARGET_RADIUS * AXIS_LEN;
+
+  for (const d of DIMS) {
+    const r = d.hue === 35 ? 255 : d.hue === 330 ? 255 : 80;
+    const g = d.hue === 35 ? 180 : d.hue === 330 ? 80 : 180;
+    const b = d.hue === 35 ? 80 : d.hue === 330 ? 152 : 255;
+
+    // 正方向
+    stroke(r, g, b, 130);
+    strokeWeight(1.6);
+    line(0, 0, 0, d.dir[0]*L, d.dir[1]*L, d.dir[2]*L);
+
+    // 负方向：和正方向完全一样
+    stroke(r, g, b, 130);
+    strokeWeight(1.6);
+    line(0, 0, 0, -d.dir[0]*L, -d.dir[1]*L, -d.dir[2]*L);
+  }
+
+  // 原点：小亮点
+  push();
+  translate(0, 0, 0);
+  noStroke();
+  ambientMaterial(255, 255, 255);
+  sphere(2.5);
+  pop();
+
+  pop();
+}
+
+function drawPoemTrails(poem, pi, poemT) {
+  const n = poem.images.length;
+  const raw = poemT * (n - 1);
+  const i = Math.min(Math.floor(raw), n - 2);
+  const frac = raw - i;
+  const stepPos = p5.Vector.lerp(poem.images[i].pos, poem.images[i+1].pos, frac);
+
+  if (showTrails) {
+    stroke(255, 255, 255, mode === 'overlay' ? 45 : 90);
+    strokeWeight(1.2);
+    noFill();
+    beginShape();
+    for (const img of poem.images) vertex(img.pos.x, img.pos.y, img.pos.z);
+    endShape();
+  }
+
+  stroke(255, 220, 120, 200);
+  strokeWeight(2.5);
+  noFill();
+  beginShape();
+  for (let j = 0; j <= i; j++) vertex(poem.images[j].pos.x, poem.images[j].pos.y, poem.images[j].pos.z);
+  vertex(stepPos.x, stepPos.y, stepPos.z);
+  endShape();
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return { x: ((cx/cw)*0.5+0.5)*width, y: (-(cy/cw)*0.5+0.5)*height, depth: cw };
+}
+
+function placeLabel(el, sp, yOff = 0, opa = 1) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.6, Math.min(1, 1 - (sp.depth - 400) / 3500));
+  el.style.opacity = (a * opa).toFixed(3);
+}
+
+function createLabels() {
+  const c = document.getElementById('labels');
+  c.innerHTML = '';
+  for (let pi = 0; pi < POEMS.length; pi++) {
+    const poem = POEMS[pi];
+    for (const img of poem.images) {
+      const el = document.createElement('div');
+      el.className = 'label img-label';
+      el.textContent = img.name;
+      c.appendChild(el);
+      labelEls[`img_${pi}_${img.name}`] = el;
+    }
+  }
+
+  for (let di = 0; di < DIMS.length; di++) {
+    const d = DIMS[di];
+    const elP = document.createElement('div');
+    elP.className = 'label axis-label';
+    elP.textContent = d.axisPos;
+    elP.style.color = d.color;
+    c.appendChild(elP);
+    labelEls[`axis_${di}_pos`] = elP;
+
+    const elN = document.createElement('div');
+    elN.className = 'label axis-label';
+    elN.textContent = d.axisNeg;
+    elN.style.color = d.color;
+    c.appendChild(elN);
+    labelEls[`axis_${di}_neg`] = elN;
+  }
+
+  const hoverEl = document.createElement('div');
+  hoverEl.className = 'label hover-label';
+  hoverEl.style.opacity = '0';
+  c.appendChild(hoverEl);
+  labelEls['__hover'] = hoverEl;
+}
+
+function updateLabels(show, poemT, hoverInfo) {
+  for (const k in labelEls) labelEls[k].style.opacity = '0';
+
+  for (const pi of show) {
+    const poem = POEMS[pi];
+    const n = poem.images.length;
+    const raw = poemT * (n - 1);
+    const i = Math.min(Math.floor(raw), n - 2);
+    const frac = raw - i;
+    const stepPos = p5.Vector.lerp(poem.images[i].pos, poem.images[i+1].pos, frac);
+
+    const hoverIdx = hoverInfo
+      ? (hoverInfo.find(h => h.pi === pi)?.idx ?? -1)
+      : -1;
+
+    for (let idx = 0; idx < poem.images.length; idx++) {
+      const img = poem.images[idx];
+      const sp = worldToScreen(img.pos.x, img.pos.y, img.pos.z);
+      const el = labelEls[`img_${pi}_${img.name}`];
+      if (!sp) continue;
+
+      const dToStep = dist(img.pos.x, img.pos.y, img.pos.z, stepPos.x, stepPos.y, stepPos.z);
+      const nearStep = map(dToStep, 0, 55, 1, 0, true);
+      const isHovered = idx === hoverIdx;
+
+      const f = Math.max(nearStep, isHovered ? 1 : 0);
+
+      const light = 58 + f * 34;
+      const sat   = 32 + f * 58;
+      el.style.color = `hsl(${poem.hue}, ${sat}%, ${light}%)`;
+
+      if (isHovered) {
+        el.style.textShadow = `0 0 10px #fff, 0 0 20px #fff, 0 0 3px #000`;
+        el.style.fontWeight = '700';
+      } else {
+        const glow = 4 + f * 14;
+        el.style.textShadow = `0 0 ${glow}px hsl(${poem.hue}, 90%, 70%), 0 0 4px #000`;
+        el.style.fontWeight = f > 0.5 ? '600' : '500';
+      }
+
+      let opa;
+      if (mode === 'focus') opa = Math.max(0.7, f);
+      else opa = 0.85 + f * 0.15;
+
+      placeLabel(el, sp, 0, opa);
+    }
+  }
+
+  // 轴标签：正负两端完全对称
+  const L = TARGET_RADIUS * AXIS_LEN;
+  for (let di = 0; di < DIMS.length; di++) {
+    const d = DIMS[di];
+    const spP = worldToScreen(d.dir[0]*L, d.dir[1]*L, d.dir[2]*L);
+    placeLabel(labelEls[`axis_${di}_pos`], spP, 0, 1);
+
+    const spN = worldToScreen(-d.dir[0]*L, -d.dir[1]*L, -d.dir[2]*L);
+    placeLabel(labelEls[`axis_${di}_neg`], spN, 0, 1);
+  }
+
+  if (hoverInfo && hoverInfo.length > 0) {
+    const info = hoverInfo[0];
+    const poem = POEMS[info.pi];
+    const img = poem.images[info.idx];
+    if (img) {
+      const sp = worldToScreen(img.pos.x, img.pos.y, img.pos.z);
+      if (sp) {
+        const hoverEl = labelEls['__hover'];
+        hoverEl.textContent = `${poem.title.split('（')[0]} · ${img.name}`;
+        hoverEl.style.color = `hsl(${poem.hue}, 75%, 85%)`;
+        placeLabel(hoverEl, sp, -30, 1);
+      }
+    }
+  }
+}
+
+function resample(arr, N) {
+  const n = arr.length;
+  if (n === 0) return new Array(N).fill(0);
+  if (n === 1) return new Array(N).fill(arr[0]);
+  const out = new Array(N);
+  for (let i = 0; i < N; i++) {
+    const tt = i / (N - 1) * (n - 1);
+    const lo = Math.floor(tt);
+    const hi = Math.min(lo + 1, n - 1);
+    const f = tt - lo;
+    out[i] = arr[lo] * (1 - f) + arr[hi] * f;
+  }
+  return out;
+}
+
+function pearson(a, b) {
+  const n = Math.min(a.length, b.length);
+  let ma = 0, mb = 0;
+  for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+  ma /= n; mb /= n;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) {
+    num += (a[i]-ma)*(b[i]-mb);
+    da += (a[i]-ma)**2;
+    db += (b[i]-mb)**2;
+  }
+  if (da < 1e-9 || db < 1e-9) return 0;
+  return num / Math.sqrt(da*db);
+}
+
+function computeCorrelation(a, b) {
+  const result = {};
+  for (const d of DIMS) {
+    const sa = resample(a.images.map(im => im[d.id]), RESAMPLE_N);
+    const sb = resample(b.images.map(im => im[d.id]), RESAMPLE_N);
+    result[d.id] = pearson(sa, sb);
+  }
+  result.overall = (result.inward + result.tense + result.abstract) / 3;
+  return result;
+}
+
+function drawParallelChart() {
+  const canvas = document.getElementById('parallel-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = rect.width, H = rect.height;
+  const pad = { top:30, bottom:26, left:34, right:26 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+  const axisX = i => pad.left + (chartW / (DIMS.length - 1)) * i;
+  const mapY = v => pad.top + chartH * (1 - (v + 1) / 2);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (const v of [-1, -0.5, 0, 0.5, 1]) {
+    const y = mapY(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+  }
+  for (let i = 0; i < DIMS.length; i++) {
+    const x = axisX(i);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, H - pad.bottom);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '11px "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(DIMS[i].name, x, pad.top - 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '9px monospace';
+    ctx.fillText('+1', x, pad.top + 10);
+    ctx.fillText('-1', x, H - pad.bottom - 3);
+  }
+  for (let pi = 0; pi < POEMS.length; pi++) {
+    const poem = POEMS[pi];
+    const isFocused = mode === 'focus' && pi === focusIndex;
+    let baseAlpha, lw;
+    if (mode === 'focus') { baseAlpha = isFocused ? 0.95 : 0.08; lw = isFocused ? 1.3 : 0.5; }
+    else { baseAlpha = 0.5; lw = 0.9; }
+    for (const img of poem.images) {
+      ctx.strokeStyle = `hsla(${poem.hue}, 70%, 68%, ${baseAlpha})`;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      for (let i = 0; i < DIMS.length; i++) {
+        const x = axisX(i);
+        const y = mapY(img[DIMS[i].id]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawFunctionChart() {
+  const canvas = document.getElementById('function-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = rect.width, H = rect.height;
+  const pad = { top:34, bottom:44, left:40, right:20 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+  const mapX = tt => pad.left + tt * chartW;
+  const mapY = v => pad.top + (1 - (v + 1) / 2) * chartH;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (const v of [-1, -0.5, 0, 0.5, 1]) {
+    const y = mapY(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'right';
+  for (const v of [-1, 0, 1]) {
+    ctx.fillText(v > 0 ? '+1' : v.toString(), pad.left - 6, mapY(v) + 3);
+  }
+  ctx.font = '10px "PingFang SC", sans-serif';
+  ctx.textAlign = 'left';
+  let lx = pad.left;
+  for (const d of DIMS) {
+    ctx.fillStyle = d.color;
+    ctx.fillRect(lx, pad.top - 20, 14, 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(d.name, lx + 18, pad.top - 15);
+    lx += 18 + ctx.measureText(d.name).width + 14;
+  }
+
+  const show = mode === 'focus' ? [focusIndex] : POEMS.map((_, i) => i);
+  for (const pi of show) {
+    const poem = POEMS[pi];
+    const alpha = mode === 'focus' ? 1 : 0.75;
+    for (const d of DIMS) {
+      const values = poem.images.map(im => im[d.id]);
+      const sampled = resample(values, RESAMPLE_N);
+      ctx.strokeStyle = `hsla(${d.hue}, 85%, 65%, ${alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < RESAMPLE_N; i++) {
+        const x = mapX(i / (RESAMPLE_N - 1));
+        const y = mapY(sampled[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  const bandY = H - pad.bottom + 14;
+  const bandH = 8;
+  const bandPoem = POEMS[show[0]];
+  const sampledAll = DIMS.map(d => resample(bandPoem.images.map(im => im[d.id]), RESAMPLE_N));
+  for (let px = 0; px < chartW; px++) {
+    const tt = px / chartW;
+    const idx = Math.min(RESAMPLE_N - 2, Math.floor(tt * (RESAMPLE_N - 1)));
+    let maxD = 0;
+    for (let di = 0; di < DIMS.length; di++) {
+      const dv = Math.abs(sampledAll[di][idx+1] - sampledAll[di][idx]);
+      if (dv > maxD) maxD = dv;
+    }
+    const norm = Math.min(1, maxD / 0.08);
+    const r = Math.round(50 + norm * 205);
+    const g = Math.round(120 - norm * 60);
+    const b = Math.round(220 - norm * 180);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(pad.left + px, bandY, 1, bandH);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('变化速度', pad.left - 6, bandY + 6);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(80,140,220,0.7)';
+  ctx.fillText('慢', pad.left + 4, bandY + bandH + 10);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,100,60,0.8)';
+  ctx.fillText('快', W - pad.right - 4, bandY + bandH + 10);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.textAlign = 'center';
+  ctx.font = '9px monospace';
+  ctx.fillText('开始', pad.left, H - 4);
+  ctx.fillText('诗进程 →', pad.left + chartW / 2, H - 4);
+  ctx.fillText('结尾', W - pad.right, H - 4);
+
+  if (hover.active) {
+    const x = mapX(hover.t);
+    ctx.strokeStyle = 'rgba(255, 240, 180, 0.75)';
+    ctx.setLineDash([2, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, bandY + bandH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const poem = POEMS[show[0]];
+    const n = poem.images.length;
+    const idx = Math.min(n - 1, Math.round(hover.t * (n - 1)));
+    const img = poem.images[idx];
+    ctx.font = 'bold 11px "PingFang SC"';
+    const label = `${poem.title.split('（')[0]} · ${img.name}`;
+    const tw = ctx.measureText(label).width;
+    const lx2 = Math.min(W - pad.right - tw/2 - 6, Math.max(pad.left + tw/2 + 6, x));
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(lx2 - tw/2 - 6, pad.top - 30, tw + 12, 18);
+    ctx.fillStyle = `hsl(${poem.hue}, 70%, 82%)`;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, lx2, pad.top - 17);
+  }
+}
+
+function updateCorrelations() {
+  const el = document.getElementById('correlations');
+  el.innerHTML = '';
+  for (let i = 0; i < POEMS.length; i++) {
+    for (let j = i + 1; j < POEMS.length; j++) {
+      const a = POEMS[i], b = POEMS[j];
+      const corr = computeCorrelation(a, b);
+      const div = document.createElement('div');
+      div.className = 'corr-block';
+      div.innerHTML = `
+        <div class="corr-title">
+          <span style="color:hsl(${a.hue},65%,68%)">${a.title.split('（')[0]}</span>
+          <span style="color:#555"> × </span>
+          <span style="color:hsl(${b.hue},65%,68%)">${b.title.split('（')[0]}</span>
+        </div>
+        <div class="corr-row"><span>内向</span><span>${fmtR(corr.inward)}${badge(corr.inward)}</span></div>
+        <div class="corr-row"><span>动静</span><span>${fmtR(corr.tense)}${badge(corr.tense)}</span></div>
+        <div class="corr-row"><span>具抽</span><span>${fmtR(corr.abstract)}${badge(corr.abstract)}</span></div>
+        <div class="corr-row total"><span>综合</span><span>${fmtR(corr.overall)}</span></div>
+      `;
+      el.appendChild(div);
+    }
+  }
+}
+
+function fmtR(r) { return (r >= 0 ? '+' : '') + r.toFixed(2); }
+
+function badge(r) {
+  let text, color;
+  if (r > 0.7)       { text = '高度相似'; color = 'rgba(120,255,180,0.2)'; }
+  else if (r > 0.3)  { text = '中等';     color = 'rgba(120,255,180,0.12)'; }
+  else if (r > -0.3) { text = '无明显';   color = 'rgba(255,255,255,0.08)'; }
+  else if (r > -0.7) { text = '弱反向';   color = 'rgba(255,120,120,0.15)'; }
+  else               { text = '强反向';   color = 'rgba(255,120,120,0.25)'; }
+  return `<span class="badge" style="background:${color}">${text}</span>`;
+}
+
+function updateFingerprintPanel() {
+  const el = document.getElementById('fingerprints');
+  el.innerHTML = '';
+  const allMeanR = POEMS.map(p => p.fp.meanRadius);
+  const allWind  = POEMS.map(p => p.fp.winding);
+  const maxR = Math.max(...allMeanR), minR = Math.min(...allMeanR);
+  const maxW = Math.max(...allWind),  minW = Math.min(...allWind);
+  for (let pi = 0; pi < POEMS.length; pi++) {
+    const poem = POEMS[pi];
+    const fp = poem.fp;
+    const color = `hsl(${poem.hue}, 65%, 68%)`;
+    const isFocused = mode === 'focus' && pi === focusIndex;
+    const rPct = maxR === minR ? 0.5 : (fp.meanRadius - minR) / (maxR - minR);
+    const wPct = maxW === minW ? 0.5 : (fp.winding - minW) / (maxW - minW);
+    const div = document.createElement('div');
+    div.className = 'fp-poem';
+    div.style.borderLeftColor = color;
+    if (isFocused) div.style.background = `hsla(${poem.hue}, 40%, 30%, 0.18)`;
+    div.innerHTML = `
+      <h3 style="color:${color}">${poem.title}</h3>
+      <div class="fp-row"><span class="k">意象数</span><span class="v">${fp.n}</span></div>
+      <div class="fp-row"><span class="k">平均内向</span><span class="v">${fmtR(fp.mi)}</span></div>
+      <div class="fp-row"><span class="k">平均动静</span><span class="v">${fmtR(fp.mt)}</span></div>
+      <div class="fp-row"><span class="k">平均具抽</span><span class="v">${fmtR(fp.ma)}</span></div>
+      <div class="fp-row bar"><span class="k">聚散</span>
+        <div class="fp-bar"><i style="width:${(rPct*100).toFixed(0)}%;background:${color}"></i></div></div>
+      <div class="fp-row bar"><span class="k">缠绕</span>
+        <div class="fp-bar"><i style="width:${(wPct*100).toFixed(0)}%;background:${color}"></i></div></div>
+      <div class="fp-row" style="margin-top:4px;"><span class="k">缠绕度</span><span class="v">${fp.winding.toFixed(2)}</span></div>
+    `;
+    el.appendChild(div);
+  }
+}
+
+function updateLegend() {
+  const el = document.getElementById('legend');
+  let html = '';
+  for (let pi = 0; pi < POEMS.length; pi++) {
+    const poem = POEMS[pi];
+    const isOther = mode === 'focus' && pi !== focusIndex;
+    const opa = isOther ? 0.3 : 1;
+    html += `<div class="item" style="opacity:${opa}">
+      <span class="dot" style="background:hsl(${poem.hue},65%,68%)"></span>
+      <span>${pi+1}. ${poem.title.split('（')[0]}</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [f(0) * 255, f(8) * 255, f(4) * 255];
+}
+
+function keyPressed() {
+  if (key === ' ') playing = !playing;
+  if (key === 'ArrowRight') speed = Math.min(0.006, speed * 1.5);
+  if (key === 'ArrowLeft')  speed = Math.max(0.00005, speed / 1.5);
+  if (key === 'l' || key === 'L') showTrails = !showTrails;
+
+  const n = parseInt(key, 10);
+  if (n === 0) mode = 'overlay';
+  else if (n >= 1 && n <= POEMS.length) { focusIndex = n - 1; mode = 'focus'; }
+  drawParallelChart();
+  drawFunctionChart();
+  updateFingerprintPanel();
+  updateCorrelations();
+  updateLegend();
+}
+
+function windowResized() {
+  const scene = document.getElementById('scene');
+  resizeCanvas(scene.offsetWidth, windowHeight);
+  drawParallelChart();
+  drawFunctionChart();
+}
+</script>
+</body>
+</html>
