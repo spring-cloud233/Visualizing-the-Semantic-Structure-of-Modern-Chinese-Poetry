@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>故事 · 潮水自指</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#030810; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#dde4f0; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em;
+           transition: color 0.15s; }
+  .node-label { font-size:13px; color:#fff;
+                text-shadow:0 0 6px #000, 0 0 12px #000, 0 0 4px #000; }
+  .node-label.hovered { color:#fff;
+                        text-shadow:0 0 8px #fff, 0 0 20px #A0C8FF, 0 0 3px #000; }
+  .node-label.core { font-size:17px; color:#FFFFFF; font-weight:700;
+                     text-shadow:0 0 10px #A0C8FF, 0 0 24px #6098E0, 0 0 4px #000; }
+  .node-label.sub { font-size:14px; color:#C8E0FF; font-weight:600;
+                    text-shadow:0 0 8px #6098E0, 0 0 16px #6098E0, 0 0 4px #000; }
+  #legend { position:fixed; right:20px; top:20px; z-index:20;
+            background:rgba(0,10,25,0.7); padding:14px 18px; border-radius:8px;
+            font:12px/1.9 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px); min-width:180px;
+            border:1px solid rgba(100,150,220,0.15); }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#7A8FA8;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px;
+                  padding:3px 8px; margin:0 -8px; border-radius:4px;
+                  cursor:pointer; pointer-events:auto;
+                  transition: background 0.15s; }
+  #legend .item:hover { background:rgba(255,255,255,0.08); }
+  #legend .item.active { background:rgba(120,180,255,0.2); }
+  #legend .item.active .name { color:#fff; font-weight:600; }
+  #legend .item .name { color:#c8d4e0; }
+  #legend .swatch { width:22px; height:2px; border-radius:1px; flex:0 0 auto; }
+  #legend .swatch.dash { background-image: repeating-linear-gradient(
+                        to right, currentColor 0, currentColor 4px,
+                        transparent 4px, transparent 7px); }
+  #status { position:fixed; right:20px; top:280px; z-index:20;
+            background:rgba(0,10,25,0.7); padding:10px 16px; border-radius:8px;
+            font:12px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px);
+            border:1px solid rgba(100,150,220,0.15);
+            opacity:0; transition: opacity 0.2s; }
+  #status.on { opacity:1; }
+  #status .k { color:#7A8FA8; font-size:11px; letter-spacing:.15em; }
+  #status .v { color:#fff; font-size:14px; font-weight:600; margin-top:2px; }
+  #status .reset { color:#80C0FF; font-size:11px; margin-top:6px; cursor:pointer;
+                   pointer-events:auto; letter-spacing:.05em; }
+  #status .reset:hover { text-decoration:underline; }
+  #hud { position:fixed; left:20px; bottom:20px; color:#8090A8;
+         font:11px/1.7 monospace; background:rgba(0,10,25,.5);
+         padding:10px 14px; border-radius:6px; pointer-events:none; z-index:20;
+         border:1px solid rgba(100,150,220,0.1); }
+  #hud b { color:#C8DDFF; }
+  #title { position:fixed; left:20px; top:20px; z-index:20;
+           font-size:13px; color:#7A8FA8; letter-spacing:.3em; }
+  #title b { color:#fff; font-weight:500; }
+  #direction { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+               z-index:20; font:12px/1 monospace; color:#5A7090;
+               letter-spacing:.4em; pointer-events:none; }
+  #direction b { color:#80C0FF; font-weight:400; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="title"><b>故事</b> · 潮水自指</div>
+<div id="direction">潮 水 是 这 首 诗 <b>↻</b></div>
+<div id="legend">
+  <h4>关系类型</h4>
+  <div class="item" data-type="struct"><span class="swatch" style="background:#FFFFFF"></span><span class="name">结构 · 元</span></div>
+  <div class="item" data-type="pair"><span class="swatch" style="background:#E0EEFF"></span><span class="name">对句</span></div>
+  <div class="item" data-type="tone"><span class="swatch" style="background:#80C0FF"></span><span class="name">音律</span></div>
+  <div class="item" data-type="echo"><span class="swatch" style="background:#A0D0FF;opacity:.8"></span><span class="name">呼应</span></div>
+  <div class="item" data-type="self"><span class="swatch dash" style="color:#40A8FF"></span><span class="name">自指 · 回环</span></div>
+  <div class="item" data-type="symbol"><span class="swatch" style="background:#5080D0"></span><span class="name">象征</span></div>
+  <div class="item" data-type="seq"><span class="swatch" style="background:#3060A0"></span><span class="name">承续（沿环）</span></div>
+</div>
+<div id="status">
+  <div class="k">当前查看</div>
+  <div class="v" id="status-val"></div>
+  <div class="reset" id="status-reset">✕ 清除筛选</div>
+</div>
+<div id="hud">
+  <b>拖动</b> 旋转 · <b>滚轮</b> 缩放<br>
+  <b>点击词</b> 看它的关系 · <b>点击图例</b> 看这类线<br>
+  <b>Esc</b> 清除
+</div>
+<script>
+// ============================================================
+// 《故事》杨牧 —— 潮水自指
+// 核心：潮水 · 回旋的曲律 · 缠绵的论述 · Metamorphosis
+// ============================================================
+
+const NODES = [
+  { id:'潮水',          pos:[   0,  100,   0], role:'core' },
+  { id:'回旋的曲律',    pos:[-360,  380,   0], role:'core' },
+  { id:'缠绵的论述',    pos:[ 360,  380,   0], role:'core' },
+  { id:'Metamorphosis', pos:[   0,  620, -80], role:'core' },
+  { id:'诗经重章叠句',  pos:[   0,  860,   0], role:'sub' },
+
+  // 外围环
+  { id:'记忆',       pos:[ 750,   0,   0] },
+  { id:'心',         pos:[ 650,   0, 375] },
+  { id:'我们',       pos:[ 375,   0, 650] },
+  { id:'分离',       pos:[   0,   0, 750] },
+  { id:'日与夜',     pos:[-375,   0, 650] },
+  { id:'故事',       pos:[-650,   0, 375] },
+  { id:'生死俯仰',   pos:[-750,   0,   0] },
+  { id:'迢迢赶赴',   pos:[-650,   0,-375] },
+  { id:'海面',       pos:[-375,   0,-650] },
+  { id:'白鸟',       pos:[   0,   0,-750] },
+  { id:'船痕',       pos:[ 375,   0,-650] },
+  { id:'季节',       pos:[ 650,   0,-375] },
+];
+
+const SEQ_ORDER = [
+  '潮水', '记忆', '心', '我们', '分离', '日与夜', '故事',
+  '回旋的曲律', '缠绵的论述',
+  '生死俯仰', '迢迢赶赴', '海面', '白鸟', '船痕', '季节',
+  '潮水',
+];
+
+const EDGES = [
+  { from:'潮水', to:'回旋的曲律', type:'struct' },
+  { from:'潮水', to:'缠绵的论述', type:'struct' },
+
+  { from:'回旋的曲律', to:'缠绵的论述', type:'pair' },
+
+  { from:'Metamorphosis', to:'潮水',       type:'tone' },
+  { from:'Metamorphosis', to:'回旋的曲律', type:'tone' },
+  { from:'Metamorphosis', to:'缠绵的论述', type:'tone' },
+
+  { from:'诗经重章叠句', to:'潮水',       type:'echo' },
+  { from:'诗经重章叠句', to:'回旋的曲律', type:'echo' },
+
+  { from:'潮水', to:'记忆',     type:'symbol' },
+  { from:'潮水', to:'心',       type:'symbol' },
+  { from:'潮水', to:'我们',     type:'symbol' },
+  { from:'潮水', to:'分离',     type:'symbol' },
+  { from:'潮水', to:'日与夜',   type:'symbol' },
+  { from:'潮水', to:'故事',     type:'symbol' },
+  { from:'潮水', to:'生死俯仰', type:'symbol' },
+  { from:'潮水', to:'迢迢赶赴', type:'symbol' },
+  { from:'潮水', to:'海面',     type:'symbol' },
+  { from:'潮水', to:'白鸟',     type:'symbol' },
+  { from:'潮水', to:'船痕',     type:'symbol' },
+  { from:'潮水', to:'季节',     type:'symbol' },
+];
+
+const TYPE_LABEL = {
+  struct:'结构 · 元', pair:'对句', tone:'音律',
+  echo:'呼应', self:'自指 · 回环',
+  symbol:'象征', seq:'承续（沿环）',
+};
+
+const STYLE = {
+  struct: { color:[255, 255, 255], weight:3.4, alpha:250 },
+  pair:   { color:[224, 238, 255], weight:1.8, alpha:200 },
+  tone:   { color:[128, 192, 255], weight:2.2, alpha:210 },
+  echo:   { color:[160, 208, 255], weight:1.4, alpha:180 },
+  self:   { color:[ 64, 168, 255], weight:3.0, alpha:240 },
+  symbol: { color:[ 80, 128, 208], weight:1.5, alpha:180 },
+  seq:    { color:[ 48,  96, 160], weight:1.4, alpha:150 },
+};
+
+const R_RING = 750;
+
+let filter = { type: null, node: null };
+let hoveredNodeId = null;
+let mouseScreen = { x: -99999, y: -99999 };
+let mouseDownPos = null;
+let cachedScreen = {};
+let canvasEl;
+
+let nodes = [];
+let nodeMap = {};
+let R;
+const labelEls = {};
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  canvasEl = c.elt;
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+
+  for (let i = 0; i < NODES.length; i++) {
+    const n = NODES[i];
+    nodes.push({
+      id: n.id, role: n.role || 'plain', order: i,
+      x: n.pos[0], y: n.pos[1], z: n.pos[2],
+    });
+  }
+  for (const n of nodes) nodeMap[n.id] = n;
+
+  createLabels();
+  bindInteractions();
+  bindLegendClicks();
+
+  camera(0, -250, 1850, 0, 300, 0, 0, 1, 0);
+}
+
+function bindInteractions() {
+  canvasEl.addEventListener('mousemove', e => {
+    const rect = canvasEl.getBoundingClientRect();
+    mouseScreen.x = e.clientX - rect.left;
+    mouseScreen.y = e.clientY - rect.top;
+  });
+  canvasEl.addEventListener('mouseleave', () => {
+    mouseScreen.x = -99999; mouseScreen.y = -99999;
+    hoveredNodeId = null;
+  });
+  canvasEl.addEventListener('mousedown', e => {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+  canvasEl.addEventListener('mouseup', e => {
+    if (!mouseDownPos) return;
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.hypot(dx, dy) < 5) {
+      handleCanvasClick(e.clientX, e.clientY);
+    }
+    mouseDownPos = null;
+  });
+}
+
+function bindLegendClicks() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.type;
+      filter.type = (filter.type === t) ? null : t;
+      filter.node = null;
+      updateLegendActive();
+      updateStatus();
+    });
+  });
+  document.getElementById('status-reset').addEventListener('click', () => {
+    filter.type = null;
+    filter.node = null;
+    updateLegendActive();
+    updateStatus();
+  });
+}
+
+function handleCanvasClick(clientX, clientY) {
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  let bestId = null;
+  let bestDist = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mx, sp.y - my);
+    if (d < bestDist) { bestDist = d; bestId = id; }
+  }
+  if (bestId) {
+    filter.node = (filter.node === bestId) ? null : bestId;
+    filter.type = null;
+  } else {
+    filter.type = null;
+    filter.node = null;
+  }
+  updateLegendActive();
+  updateStatus();
+}
+
+function updateLegendActive() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === filter.type);
+  });
+}
+
+function updateStatus() {
+  const s = document.getElementById('status');
+  const v = document.getElementById('status-val');
+  if (!filter.type && !filter.node) {
+    s.classList.remove('on');
+    return;
+  }
+  s.classList.add('on');
+  if (filter.type) v.textContent = TYPE_LABEL[filter.type];
+  if (filter.node) v.textContent = filter.node;
+}
+
+const DIM = 0.06;
+const NODE_DIM = 0.08;
+const NODE_NEIGHBOR = 0.95;
+
+const SELF_EDGE = { from:'回旋的曲律', to:'潮水', type:'self', virtual:true };
+const SELF_EDGE2 = { from:'缠绵的论述', to:'潮水', type:'self', virtual:true };
+
+function allEdges() {
+  return EDGES.concat([SELF_EDGE, SELF_EDGE2]);
+}
+
+function getEdgeAlpha(e) {
+  const base = STYLE[e.type].alpha;
+  if (filter.type && e.type !== filter.type) return base * DIM;
+  if (filter.node) {
+    if (e.from !== filter.node && e.to !== filter.node) return base * DIM;
+  }
+  return base;
+}
+
+function getNodeAlpha(id) {
+  if (filter.type) {
+    const touched = allEdges().some(e =>
+      e.type === filter.type && (e.from === id || e.to === id));
+    return touched ? 1 : NODE_DIM;
+  }
+  if (filter.node) {
+    if (id === filter.node) return 1;
+    const adjacent = allEdges().some(e =>
+      (e.from === id && e.to === filter.node) ||
+      (e.to === id && e.from === filter.node));
+    return adjacent ? NODE_NEIGHBOR : NODE_DIM;
+  }
+  return 1;
+}
+
+function draw() {
+  background(3, 8, 16);
+  orbitControl();
+  ambientLight(255);
+
+  updateHoverFromCache();
+
+  drawRingGuide();
+  drawSeq();
+  drawSymbol();
+  drawEchoLines();
+  drawToneLines();
+  drawPair();
+  drawStruct();
+  drawSelfArc();
+
+  for (const n of nodes) {
+    const a = getNodeAlpha(n.id);
+    const isHover = (n.id === hoveredNodeId);
+    push();
+    translate(n.x, n.y, n.z);
+    noStroke();
+    if (n.role === 'core') {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 13 : 10);
+      ambientMaterial(160, 200, 255, 60 * a);
+      sphere(isHover ? 28 : 22);
+    } else if (n.role === 'sub') {
+      ambientMaterial(200, 224, 255, 255 * a);
+      sphere(isHover ? 9 : 7);
+      ambientMaterial(140, 180, 240, 55 * a);
+      sphere(isHover ? 18 : 14);
+    } else {
+      ambientMaterial(230, 240, 255, 255 * a);
+      sphere(isHover ? 5.5 : 3.8);
+      ambientMaterial(140, 180, 240, 50 * a);
+      sphere(isHover ? 12 : 8);
+    }
+    pop();
+  }
+
+  updateLabels();
+}
+
+function updateHoverFromCache() {
+  if (mouseScreen.x < -1000) { hoveredNodeId = null; return; }
+  let best = null, bestD = 30;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mouseScreen.x, sp.y - mouseScreen.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  hoveredNodeId = best;
+}
+
+function drawRingGuide() {
+  push();
+  noFill();
+  stroke(80, 140, 220, 40);
+  strokeWeight(1);
+  const steps = 200;
+  beginShape();
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = t * TWO_PI;
+    vertex(
+      R_RING * Math.cos(angle),
+      0,
+      R_RING * Math.sin(angle),
+    );
+  }
+  endShape();
+  pop();
+}
+
+function drawSeq() {
+  const s = STYLE.seq;
+  stroke(s.color[0], s.color[1], s.color[2], s.alpha);
+  strokeWeight(s.weight);
+  noFill();
+  for (let i = 1; i < SEQ_ORDER.length; i++) {
+    const a = nodeMap[SEQ_ORDER[i-1]];
+    const b = nodeMap[SEQ_ORDER[i]];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    let ctrl;
+    if (Math.abs(a.y) < 1 && Math.abs(b.y) < 1) {
+      ctrl = createVector(mid.x, mid.y + 60, mid.z);
+    } else {
+      ctrl = mid;
+    }
+    const steps = 24;
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawSymbol() {
+  const s = STYLE.symbol;
+  strokeWeight(s.weight);
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== 'symbol') continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x, mid.y - 40, mid.z);
+    const steps = 28;
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawEchoLines() {
+  const s = STYLE.echo;
+  strokeWeight(s.weight);
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== 'echo') continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x + 30, mid.y, mid.z + 20);
+    const steps = 20;
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawToneLines() {
+  const s = STYLE.tone;
+  strokeWeight(s.weight);
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== 'tone') continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x + 40, mid.y + 60, mid.z);
+    const steps = 24;
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawPair() {
+  const s = STYLE.pair;
+  strokeWeight(s.weight);
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== 'pair') continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x, mid.y + 50, mid.z);
+    const steps = 20;
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawStruct() {
+  const s = STYLE.struct;
+  strokeWeight(s.weight);
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== 'struct') continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    line(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+}
+
+function drawSelfArc() {
+  const s = STYLE.self;
+  const sources = ['回旋的曲律', '缠绵的论述'];
+  for (let si = 0; si < sources.length; si++) {
+    const a = nodeMap[sources[si]];
+    const target = nodeMap['潮水'];
+    if (!a || !target) continue;
+    const SELF = si === 0 ? SELF_EDGE : SELF_EDGE2;
+    const alpha = getEdgeAlpha(SELF);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(target.x, target.y, target.z);
+    const side = si === 0 ? -1 : 1;
+    const ctrl = createVector(
+      (A.x + B.x) / 2 + side * 260,
+      (A.y + B.y) / 2 + 320,
+      (A.z + B.z) / 2,
+    );
+
+    const steps = 60;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      pts.push(createVector(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      ));
+    }
+    for (let i = 1; i < pts.length; i++) {
+      if (i % 4 < 2) {
+        line(pts[i-1].x, pts[i-1].y, pts[i-1].z, pts[i].x, pts[i].y, pts[i].z);
+      }
+    }
+  }
+}
+
+function createLabels() {
+  const container = document.getElementById('labels');
+  container.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+
+  for (const n of nodes) {
+    const el = document.createElement('div');
+    let cls = 'label node-label';
+    if (n.role === 'core') cls += ' core';
+    else if (n.role === 'sub') cls += ' sub';
+    el.className = cls;
+    el.textContent = n.id;
+    container.appendChild(el);
+    labelEls['node_' + n.id] = el;
+  }
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return {
+    x: ((cx/cw)*0.5+0.5)*width,
+    y: (-(cy/cw)*0.5+0.5)*height,
+    depth: cw,
+  };
+}
+
+function placeLabel(el, sp, yOff = 0, extra = 1) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.4, Math.min(1, 1 - (sp.depth - 600) / 3600));
+  el.style.opacity = (a * extra).toFixed(3);
+}
+
+function updateLabels() {
+  cachedScreen = {};
+  for (const n of nodes) {
+    const sp = worldToScreen(n.x, n.y, n.z);
+    cachedScreen[n.id] = sp;
+    const el = labelEls['node_' + n.id];
+    el.classList.toggle('hovered', n.id === hoveredNodeId);
+    const yOff = n.role === 'core' ? -28 : n.role === 'sub' ? -22 : -18;
+    placeLabel(el, sp, yOff, getNodeAlpha(n.id));
+  }
+}
+
+function keyPressed() {
+  if (keyCode === 27) {
+    filter.type = null;
+    filter.node = null;
+    updateLegendActive();
+    updateStatus();
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>
