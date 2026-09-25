@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>青烟 · 意象纤维网</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#02100e; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#cfe8e4; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em;
+           transition: color 0.15s; }
+  .node-label { font-size:14px; color:#e8fffa;
+                text-shadow:0 0 6px #000, 0 0 12px #000, 0 0 4px #000; }
+  .node-label.hovered { color:#fff;
+                        text-shadow:0 0 8px #fff, 0 0 20px #80E8D0, 0 0 3px #000; }
+  .node-label.core { font-size:17px; color:#FFFFFF; font-weight:700;
+                     text-shadow:0 0 12px #A0F0E0, 0 0 28px #50B8A0, 0 0 4px #000; }
+  .node-label.flower { color:#E0FFF8; font-weight:600;
+                       text-shadow:0 0 10px #A0F0E0, 0 0 20px #60C0A8, 0 0 4px #000; }
+  .node-label.past { color:#8FBFB8; font-style:italic;
+                     text-shadow:0 0 6px #306860, 0 0 12px #204840, 0 0 4px #000; }
+  #legend { position:fixed; right:20px; top:20px; z-index:20;
+            background:rgba(0,20,18,0.7); padding:14px 18px; border-radius:8px;
+            font:12px/1.9 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px); min-width:170px;
+            border:1px solid rgba(100,200,190,0.15); }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#6f9a94;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px;
+                  padding:3px 8px; margin:0 -8px; border-radius:4px;
+                  cursor:pointer; pointer-events:auto;
+                  transition: background 0.15s; }
+  #legend .item:hover { background:rgba(160,240,224,0.08); }
+  #legend .item.active { background:rgba(120,220,200,0.2); }
+  #legend .item.active .name { color:#fff; font-weight:600; }
+  #legend .item .name { color:#bcd4d0; }
+  #legend .swatch { width:22px; height:2px; border-radius:1px; flex:0 0 auto; }
+  #legend .swatch.dash { background-image: repeating-linear-gradient(
+                        to right, currentColor 0, currentColor 4px,
+                        transparent 4px, transparent 7px); }
+  #status { position:fixed; right:20px; top:270px; z-index:20;
+            background:rgba(0,20,18,0.7); padding:10px 16px; border-radius:8px;
+            font:12px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px);
+            border:1px solid rgba(100,200,190,0.15);
+            opacity:0; transition: opacity 0.2s; }
+  #status.on { opacity:1; }
+  #status .k { color:#6f9a94; font-size:11px; letter-spacing:.15em; }
+  #status .v { color:#fff; font-size:14px; font-weight:600; margin-top:2px; }
+  #status .reset { color:#80E8D0; font-size:11px; margin-top:6px; cursor:pointer;
+                   pointer-events:auto; letter-spacing:.05em; }
+  #status .reset:hover { text-decoration:underline; }
+  #hud { position:fixed; left:20px; bottom:20px; color:#7a9a96;
+         font:11px/1.7 monospace; background:rgba(0,20,18,.5);
+         padding:10px 14px; border-radius:6px; pointer-events:none; z-index:20;
+         border:1px solid rgba(100,200,190,0.1); }
+  #hud b { color:#c8e8e2; }
+  #title { position:fixed; left:20px; top:20px; z-index:20;
+           font-size:13px; color:#7a9a96; letter-spacing:.3em; }
+  #title b { color:#fff; font-weight:500; }
+  #direction { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+               z-index:20; font:12px/1 monospace; color:#4f7a74;
+               letter-spacing:.4em; pointer-events:none; }
+  #direction b { color:#80E8D0; font-weight:400; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="title"><b>青烟</b> · 时间的静寂</div>
+<div id="direction">诗 句 方 向 <b>→</b></div>
+<div id="legend">
+  <h4>关系类型</h4>
+  <div class="item" data-type="seq"><span class="swatch" style="background:#2A6E68"></span><span class="name">承续</span></div>
+  <div class="item" data-type="vanish"><span class="swatch" style="background:#A0F0E0;opacity:.8"></span><span class="name">消逝</span></div>
+  <div class="item" data-type="space"><span class="swatch" style="background:#50A8A0"></span><span class="name">空间延伸</span></div>
+  <div class="item" data-type="meta"><span class="swatch" style="background:#FFFFFF"></span><span class="name">隐喻 · 核心</span></div>
+  <div class="item" data-type="past"><span class="swatch dash" style="color:#7A9A96"></span><span class="name">过去的过去</span></div>
+</div>
+<div id="status">
+  <div class="k">当前查看</div>
+  <div class="v" id="status-val"></div>
+  <div class="reset" id="status-reset">✕ 清除筛选</div>
+</div>
+<div id="hud">
+  <b>拖动</b> 旋转 · <b>滚轮</b> 缩放<br>
+  <b>点击词</b> 看它的关系 · <b>点击图例</b> 看这类线<br>
+  <b>空格</b> 重排 · <b>Esc</b> 清除
+</div>
+<script>
+const NODES = [
+  { id:'青烟',           role:'core' },
+  { id:'从树林中来的人', role:'core' },
+  { id:'我们',           role:'core' },
+
+  { id:'树林',           pos:[ 0, 0, 0] },
+  { id:'寺塔',           pos:[-1, 0, 0] },
+  { id:'桥',             pos:[ 0, 0, -1] },
+  { id:'楼前',           pos:[ 1, 0, 0] },
+  { id:'夭亡的春季',     pos:[ 0, 1, 0] },
+  { id:'春灯',           pos:[ 1, 0, 1] },
+  { id:'风尘',           pos:[ 1, 1, 0] },
+
+  { id:'垣堞',           role:'past' },
+  { id:'石阶',           role:'past' },
+  { id:'井湄',           role:'past' },
+  { id:'白花',           role:'flower' },
+  { id:'时间的静寂',     role:'flower' },
+  { id:'新绿',           role:'flower' },
+];
+
+const EDGES = [
+  // 承续
+  { from:'树林',     to:'青烟',           type:'seq' },
+  { from:'青烟',     to:'寺塔',           type:'seq' },
+  { from:'寺塔',     to:'桥',             type:'seq' },
+  { from:'桥',       to:'我们',           type:'seq' },
+  { from:'我们',     to:'夭亡的春季',     type:'seq' },
+  { from:'夭亡的春季', to:'楼前',         type:'seq' },
+  { from:'楼前',     to:'树林',           type:'seq' },
+  { from:'树林',     to:'从树林中来的人', type:'seq' },
+  { from:'从树林中来的人', to:'春灯',     type:'seq' },
+  { from:'春灯',     to:'风尘',           type:'seq' },
+  { from:'风尘',     to:'垣堞',           type:'seq' },
+  { from:'垣堞',     to:'石阶',           type:'seq' },
+  { from:'石阶',     to:'井湄',           type:'seq' },
+  { from:'井湄',     to:'白花',           type:'seq' },
+  { from:'白花',     to:'时间的静寂',     type:'seq' },
+  { from:'时间的静寂', to:'新绿',         type:'seq' },
+
+  // 消逝
+  { from:'青烟',     to:'我们',           type:'vanish' },
+  { from:'夭亡的春季', to:'青烟',         type:'vanish' },
+  { from:'从树林中来的人', to:'树林',     type:'vanish' },
+
+  // 空间延伸
+  { from:'垣堞',     to:'新绿',           type:'space' },
+  { from:'垣堞',     to:'石阶',           type:'space' },
+  { from:'石阶',     to:'井湄',           type:'space' },
+  { from:'寺塔',     to:'青烟',           type:'space' },
+
+  // 隐喻 · 核心
+  { from:'白花',     to:'时间的静寂',     type:'meta' },
+  { from:'青烟',     to:'夭亡的春季',     type:'meta' },
+  { from:'从树林中来的人', to:'新绿',     type:'meta' },
+
+  // 过去的过去
+  { from:'垣堞',     to:'我们',           type:'past' },
+  { from:'我们',     to:'井湄',           type:'past' },
+  { from:'从树林中来的人', to:'我们',     type:'past' },
+];
+
+const TYPE_LABEL = {
+  seq:'承续', vanish:'消逝', space:'空间延伸',
+  meta:'隐喻 · 核心', past:'过去的过去',
+};
+
+const STYLE = {
+  seq:    { color:[ 42, 110, 104], weight:1.4, alpha:150, bend:0.08 },
+  vanish: { color:[160, 240, 224], weight:2.0, alpha:180, bend:0.30 },
+  space:  { color:[ 80, 168, 160], weight:1.6, alpha:180, bend:0.20 },
+  meta:   { color:[255, 255, 255], weight:2.8, alpha:230, bend:0.35 },
+  past:   { color:[122, 154, 150], weight:1.2, alpha:150, bend:0.50, dashed:true },
+};
+
+const X_SPACING = 88;
+const REPEL_K = 22000;
+const ATTRACT_K = 0.012;
+const YZ_ITER = 700;
+const REST_LEN = {
+  seq: 70, vanish: 130, space: 90, meta: 80, past: 200,
+};
+
+let filter = { type: null, node: null };
+let hoveredNodeId = null;
+let mouseScreen = { x: -99999, y: -99999 };
+let mouseDownPos = null;
+let cachedScreen = {};
+let canvasEl;
+
+let nodes = [];
+let nodeMap = {};
+let R;
+const labelEls = {};
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  canvasEl = c.elt;
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+
+  const N = NODES.length;
+  const cx = (N - 1) / 2;
+  for (let i = 0; i < N; i++) {
+    const n = NODES[i];
+    let y0, z0;
+    if (n.role === 'core')         { y0 =   0; z0 =   0; }
+    else if (n.role === 'past')    { y0 =  80; z0 = -60; }
+    else if (n.role === 'flower')  { y0 = -80; z0 =  60; }
+    else                            { y0 =  20; z0 =  40; }
+    nodes.push({
+      id: n.id, role: n.role || 'plain', order: i,
+      x: (i - cx) * X_SPACING,
+      y: y0 + random(-80, 80),
+      z: z0 + random(-80, 80),
+      vy: 0, vz: 0,
+    });
+  }
+  for (const n of nodes) nodeMap[n.id] = n;
+
+  computeYZLayout();
+  createLabels();
+  bindInteractions();
+  bindLegendClicks();
+  camera(0, -150, 1550, 0, 0, 0, 0, 1, 0);
+}
+
+function bindInteractions() {
+  canvasEl.addEventListener('mousemove', e => {
+    const rect = canvasEl.getBoundingClientRect();
+    mouseScreen.x = e.clientX - rect.left;
+    mouseScreen.y = e.clientY - rect.top;
+  });
+  canvasEl.addEventListener('mouseleave', () => {
+    mouseScreen.x = -99999; mouseScreen.y = -99999;
+    hoveredNodeId = null;
+  });
+  canvasEl.addEventListener('mousedown', e => {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+  canvasEl.addEventListener('mouseup', e => {
+    if (!mouseDownPos) return;
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.hypot(dx, dy) < 5) handleCanvasClick(e.clientX, e.clientY);
+    mouseDownPos = null;
+  });
+}
+
+function bindLegendClicks() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.type;
+      filter.type = (filter.type === t) ? null : t;
+      filter.node = null;
+      updateLegendActive(); updateStatus();
+    });
+  });
+  document.getElementById('status-reset').addEventListener('click', () => {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  });
+}
+
+function handleCanvasClick(clientX, clientY) {
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  let bestId = null, bestDist = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mx, sp.y - my);
+    if (d < bestDist) { bestDist = d; bestId = id; }
+  }
+  if (bestId) {
+    filter.node = (filter.node === bestId) ? null : bestId;
+    filter.type = null;
+  } else {
+    filter.type = null; filter.node = null;
+  }
+  updateLegendActive(); updateStatus();
+}
+
+function updateLegendActive() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === filter.type);
+  });
+}
+
+function updateStatus() {
+  const s = document.getElementById('status');
+  const v = document.getElementById('status-val');
+  if (!filter.type && !filter.node) { s.classList.remove('on'); return; }
+  s.classList.add('on');
+  if (filter.type) v.textContent = TYPE_LABEL[filter.type];
+  if (filter.node) v.textContent = filter.node;
+}
+
+const DIM = 0.08;
+const NODE_DIM = 0.10;
+const NODE_NEIGHBOR = 0.9;
+
+function getEdgeAlpha(e) {
+  const base = STYLE[e.type].alpha;
+  if (filter.type && e.type !== filter.type) return base * DIM;
+  if (filter.node && e.from !== filter.node && e.to !== filter.node) return base * DIM;
+  return base;
+}
+
+function getNodeAlpha(id) {
+  if (filter.type) {
+    const touched = EDGES.some(e =>
+      e.type === filter.type && (e.from === id || e.to === id));
+    return touched ? 1 : NODE_DIM;
+  }
+  if (filter.node) {
+    if (id === filter.node) return 1;
+    const adjacent = EDGES.some(e =>
+      (e.from === id && e.to === filter.node) ||
+      (e.to === id && e.from === filter.node));
+    return adjacent ? NODE_NEIGHBOR : NODE_DIM;
+  }
+  return 1;
+}
+
+function computeYZLayout() {
+  for (let iter = 0; iter < YZ_ITER; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dy = b.y - a.y, dz = b.z - a.z;
+        let dist = Math.sqrt(dy*dy + dz*dz);
+        if (dist < 0.5) { dy += random(-1,1); dz += random(-1,1); dist = 0.5; }
+        const f = REPEL_K / (dist * dist);
+        const uy = dy/dist, uz = dz/dist;
+        a.vy -= uy*f; a.vz -= uz*f;
+        b.vy += uy*f; b.vz += uz*f;
+      }
+    }
+    for (const e of EDGES) {
+      const a = nodeMap[e.from], b = nodeMap[e.to];
+      if (!a || !b) continue;
+      const rest = REST_LEN[e.type];
+      let dy = b.y - a.y, dz = b.z - a.z;
+      let dist = Math.sqrt(dy*dy + dz*dz);
+      if (dist < 0.5) dist = 0.5;
+      const uy = dy/dist, uz = dz/dist;
+      const isAdjacent = Math.abs(a.order - b.order) === 1;
+      const k = isAdjacent ? ATTRACT_K*3 : ATTRACT_K;
+      const f = k * (dist - rest);
+      a.vy += uy*f*0.5; a.vz += uz*f*0.5;
+      b.vy -= uy*f*0.5; b.vz -= uz*f*0.5;
+    }
+    for (const n of nodes) {
+      n.vy *= 0.85; n.vz *= 0.85;
+      n.vy += random(-0.15, 0.15);
+      n.vz += random(-0.15, 0.15);
+      n.y += n.vy; n.z += n.vz;
+    }
+  }
+  let cy = 0, cz = 0;
+  for (const n of nodes) { cy += n.y; cz += n.z; }
+  cy /= nodes.length; cz /= nodes.length;
+  for (const n of nodes) { n.y -= cy; n.z -= cz; }
+}
+
+function draw() {
+  background(2, 16, 14);
+  orbitControl();
+  ambientLight(255);
+  updateHoverFromCache();
+
+  drawCurvedEdges('meta');
+  drawCurvedEdges('vanish');
+  drawCurvedEdges('space');
+  drawCurvedEdges('seq');
+  drawDashedEdges('past');
+
+  for (const n of nodes) {
+    const a = getNodeAlpha(n.id);
+    const isHover = (n.id === hoveredNodeId);
+    push();
+    translate(n.x, n.y, n.z);
+    noStroke();
+    if (n.role === 'core') {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 12 : 9);
+      ambientMaterial(160, 240, 224, 70 * a);
+      sphere(isHover ? 26 : 20);
+      ambientMaterial(80, 184, 160, 35 * a);
+      sphere(32);
+    } else if (n.role === 'flower') {
+      ambientMaterial(224, 255, 248, 255 * a);
+      sphere(isHover ? 8 : 6);
+      ambientMaterial(160, 240, 224, 60 * a);
+      sphere(isHover ? 18 : 14);
+    } else if (n.role === 'past') {
+      ambientMaterial(143, 191, 184, 255 * a);
+      sphere(isHover ? 6 : 4.5);
+      ambientMaterial(48, 104, 96, 50 * a);
+      sphere(isHover ? 14 : 10);
+    } else {
+      ambientMaterial(232, 255, 250, 255 * a);
+      sphere(isHover ? 5.5 : 3.5);
+      ambientMaterial(160, 240, 224, 50 * a);
+      sphere(isHover ? 12 : 8);
+    }
+    pop();
+  }
+  updateLabels();
+}
+
+function updateHoverFromCache() {
+  if (mouseScreen.x < -1000) { hoveredNodeId = null; return; }
+  let best = null, bestD = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mouseScreen.x, sp.y - mouseScreen.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  hoveredNodeId = best;
+}
+
+function drawCurvedEdges(type) {
+  const s = STYLE[type];
+  noFill();
+  for (let ei = 0; ei < EDGES.length; ei++) {
+    const e = EDGES[ei];
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    const dir = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir.copy().mult(perp.dot(dir)));
+    if (perp.mag() < 0.01) perp.set(0, 1, 0);
+    perp.normalize();
+    const side = (ei % 2 === 0) ? 1 : -1;
+    const ctrl = p5.Vector.add(mid, perp.mult(s.bend * segLen * side));
+
+    const steps = Math.max(16, Math.floor(segLen / 8));
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawDashedEdges(type) {
+  const s = STYLE[type];
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+    drawDashedLine(
+      createVector(a.x, a.y, a.z),
+      createVector(b.x, b.y, b.z),
+      8, 7
+    );
+  }
+}
+
+function drawDashedLine(a, b, dashLen, gapLen) {
+  const d = p5.Vector.sub(b, a);
+  const len = d.mag();
+  if (len < 0.01) return;
+  const dir = d.copy().normalize();
+  let pos = 0;
+  while (pos < len) {
+    const segEnd = Math.min(pos + dashLen, len);
+    const p1 = p5.Vector.add(a, dir.copy().mult(pos));
+    const p2 = p5.Vector.add(a, dir.copy().mult(segEnd));
+    line(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    pos = segEnd + gapLen;
+  }
+}
+
+function createLabels() {
+  const container = document.getElementById('labels');
+  container.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+  for (const n of nodes) {
+    const el = document.createElement('div');
+    let cls = 'label node-label';
+    if (n.role === 'core')   cls += ' core';
+    if (n.role === 'flower') cls += ' flower';
+    if (n.role === 'past')   cls += ' past';
+    el.className = cls;
+    el.textContent = n.id;
+    container.appendChild(el);
+    labelEls['node_' + n.id] = el;
+  }
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return {
+    x: ((cx/cw)*0.5+0.5)*width,
+    y: (-(cy/cw)*0.5+0.5)*height,
+    depth: cw,
+  };
+}
+
+function placeLabel(el, sp, yOff = 0, extra = 1) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.4, Math.min(1, 1 - (sp.depth - 600) / 3600));
+  el.style.opacity = (a * extra).toFixed(3);
+}
+
+function updateLabels() {
+  cachedScreen = {};
+  for (const n of nodes) {
+    const sp = worldToScreen(n.x, n.y, n.z);
+    cachedScreen[n.id] = sp;
+    const el = labelEls['node_' + n.id];
+    el.classList.toggle('hovered', n.id === hoveredNodeId);
+    placeLabel(el, sp, -18, getNodeAlpha(n.id));
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    for (const n of nodes) {
+      let y0, z0;
+      if (n.role === 'core')         { y0 =   0; z0 =   0; }
+      else if (n.role === 'past')    { y0 =  80; z0 = -60; }
+      else if (n.role === 'flower')  { y0 = -80; z0 =  60; }
+      else                            { y0 =  20; z0 =  40; }
+      n.y = y0 + random(-100, 100);
+      n.z = z0 + random(-100, 100);
+      n.vy = 0; n.vz = 0;
+    }
+    computeYZLayout();
+  }
+  if (keyCode === 27) {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  }
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
