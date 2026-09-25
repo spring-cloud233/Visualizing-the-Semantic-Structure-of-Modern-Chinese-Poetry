@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>水仙花 · 星子的回环</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#06080e; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#ddd; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em;
+           transition: color 0.15s; }
+  .node-label { font-size:14px; color:#fff;
+                text-shadow:0 0 6px #000, 0 0 12px #000, 0 0 4px #000; }
+  .node-label.hovered { color:#fff;
+                        text-shadow:0 0 8px #fff, 0 0 20px #A0C0FF, 0 0 3px #000; }
+  .node-label.core { font-size:17px; color:#FFFFFF; font-weight:700;
+                     text-shadow:0 0 12px #A0C0FF, 0 0 28px #6080D0, 0 0 4px #000; }
+  .node-label.time { color:#A8C8F0; font-weight:600;
+                     text-shadow:0 0 8px #4060A0, 0 0 16px #304880, 0 0 4px #000; }
+  .node-label.private { color:#D0B8F0; font-weight:600;
+                        text-shadow:0 0 8px #7050A0, 0 0 16px #503880, 0 0 4px #000; }
+  .node-label.inter { color:#E0C880; font-style:italic;
+                      text-shadow:0 0 8px #A08030, 0 0 16px #806020, 0 0 4px #000; }
+  #legend { position:fixed; right:20px; top:20px; z-index:20;
+            background:rgba(6,10,20,0.7); padding:14px 18px; border-radius:8px;
+            font:12px/1.9 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px); min-width:180px;
+            border:1px solid rgba(140,180,240,0.15); }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#5f7088;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px;
+                  padding:3px 8px; margin:0 -8px; border-radius:4px;
+                  cursor:pointer; pointer-events:auto;
+                  transition: background 0.15s; }
+  #legend .item:hover { background:rgba(160,200,255,0.08); }
+  #legend .item.active { background:rgba(120,160,240,0.22); }
+  #legend .item.active .name { color:#fff; font-weight:600; }
+  #legend .item .name { color:#ccc; }
+  #legend .swatch { width:22px; height:2px; border-radius:1px; flex:0 0 auto; }
+  #legend .swatch.dash { background-image: repeating-linear-gradient(
+                        to right, currentColor 0, currentColor 4px,
+                        transparent 4px, transparent 7px); }
+  #status { position:fixed; right:20px; top:290px; z-index:20;
+            background:rgba(6,10,20,0.7); padding:10px 16px; border-radius:8px;
+            font:12px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;
+            pointer-events:none; backdrop-filter:blur(6px);
+            border:1px solid rgba(140,180,240,0.15);
+            opacity:0; transition: opacity 0.2s; }
+  #status.on { opacity:1; }
+  #status .k { color:#5f7088; font-size:11px; letter-spacing:.15em; }
+  #status .v { color:#fff; font-size:14px; font-weight:600; margin-top:2px; }
+  #status .reset { color:#80B0E8; font-size:11px; margin-top:6px; cursor:pointer;
+                   pointer-events:auto; letter-spacing:.05em; }
+  #status .reset:hover { text-decoration:underline; }
+  #hud { position:fixed; left:20px; bottom:20px; color:#5f7088;
+         font:11px/1.7 monospace; background:rgba(6,10,20,.5);
+         padding:10px 14px; border-radius:6px; pointer-events:none; z-index:20;
+         border:1px solid rgba(140,180,240,0.1); }
+  #hud b { color:#c8d0e0; }
+  #title { position:fixed; left:20px; top:20px; z-index:20;
+           font-size:13px; color:#5f7088; letter-spacing:.3em; }
+  #title b { color:#fff; font-weight:500; }
+  #direction { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+               z-index:20; font:12px/1 monospace; color:#404a60;
+               letter-spacing:.4em; pointer-events:none; }
+  #direction b { color:#80B0E8; font-weight:400; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="title"><b>水仙花</b> · 星子的回环</div>
+<div id="direction">诗 句 方 向 <b>→</b></div>
+<div id="legend">
+  <h4>关系类型</h4>
+  <div class="item" data-type="seq"><span class="swatch" style="background:#4A5570"></span><span class="name">承续</span></div>
+  <div class="item" data-type="echo"><span class="swatch" style="background:#FFFFFF"></span><span class="name">星子的回环</span></div>
+  <div class="item" data-type="time"><span class="swatch" style="background:#5080D0"></span><span class="name">时间流</span></div>
+  <div class="item" data-type="mirror"><span class="swatch" style="background:#C0A8F0"></span><span class="name">镜像 · 自照</span></div>
+  <div class="item" data-type="private"><span class="swatch" style="background:#D0B8F0"></span><span class="name">私人场景</span></div>
+  <div class="item" data-type="inter"><span class="swatch dash" style="color:#E0C880"></span><span class="name">互文 · 神话</span></div>
+</div>
+<div id="status">
+  <div class="k">当前查看</div>
+  <div class="v" id="status-val"></div>
+  <div class="reset" id="status-reset">✕ 清除筛选</div>
+</div>
+<div id="hud">
+  <b>拖动</b> 旋转 · <b>滚轮</b> 缩放<br>
+  <b>点击词</b> 看它的关系 · <b>点击图例</b> 看这类线<br>
+  <b>空格</b> 重排 · <b>Esc</b> 清除
+</div>
+<script>
+const NODES = [
+  { id:'过去的星子',       region:'core' },
+  { id:'今日的星子',       region:'core' },
+  { id:'水仙',             region:'core' },
+
+  { id:'共楫一舟',         region:'time' },
+  { id:'时间的长流',       region:'time' },
+  { id:'七洋',             region:'time' },
+  { id:'千载一梦',         region:'time' },
+  { id:'水波浩瀚',         region:'time' },
+  { id:'两鬓星华',         region:'time' },
+
+  { id:'争执',             region:'private' },
+  { id:'催眠曲',           region:'private' },
+  { id:'流萤',             region:'private' },
+  { id:'星光花影的足踝',   region:'private' },
+  { id:'荒山野渡',         region:'private' },
+  { id:'北窗',             region:'private' },
+  { id:'发黄的信札',       region:'private' },
+
+  { id:'纳西索斯',         region:'inter' },
+  { id:'青鸾舞镜',         region:'inter' },
+];
+
+const EDGES = [
+  // 承续
+  { from:'过去的星子',     to:'争执',             type:'seq' },
+  { from:'争执',           to:'催眠曲',           type:'seq' },
+  { from:'催眠曲',         to:'流萤',             type:'seq' },
+  { from:'流萤',           to:'星光花影的足踝',   type:'seq' },
+  { from:'星光花影的足踝', to:'荒山野渡',         type:'seq' },
+  { from:'荒山野渡',       to:'共楫一舟',         type:'seq' },
+  { from:'共楫一舟',       to:'时间的长流',       type:'seq' },
+  { from:'时间的长流',     to:'七洋',             type:'seq' },
+  { from:'七洋',           to:'千载一梦',         type:'seq' },
+  { from:'千载一梦',       to:'水波浩瀚',         type:'seq' },
+  { from:'水波浩瀚',       to:'两鬓星华',         type:'seq' },
+  { from:'两鬓星华',       to:'水仙',             type:'seq' },
+  { from:'水仙',           to:'今日的星子',       type:'seq' },
+  { from:'今日的星子',     to:'北窗',             type:'seq' },
+  { from:'北窗',           to:'发黄的信札',       type:'seq' },
+
+  // 星子的回环
+  { from:'过去的星子',     to:'今日的星子',       type:'echo' },
+  { from:'发黄的信札',     to:'过去的星子',       type:'echo' },
+  { from:'北窗',           to:'催眠曲',           type:'echo' },
+
+  // 时间流
+  { from:'共楫一舟',       to:'七洋',             type:'time' },
+  { from:'共楫一舟',       to:'千载一梦',         type:'time' },
+  { from:'共楫一舟',       to:'两鬓星华',         type:'time' },
+  { from:'时间的长流',     to:'水波浩瀚',         type:'time' },
+  { from:'时间的长流',     to:'千载一梦',         type:'time' },
+  { from:'七洋',           to:'两鬓星华',         type:'time' },
+
+  // 镜像 · 自照
+  { from:'水仙',           to:'纳西索斯',         type:'mirror' },
+  { from:'水仙',           to:'青鸾舞镜',         type:'mirror' },
+  { from:'水仙',           to:'发黄的信札',       type:'mirror' },
+  { from:'水仙',           to:'过去的星子',       type:'mirror' },
+  { from:'水仙',           to:'两鬓星华',         type:'mirror' },
+
+  // 私人场景
+  { from:'争执',           to:'催眠曲',           type:'private' },
+  { from:'流萤',           to:'星光花影的足踝',   type:'private' },
+  { from:'北窗',           to:'发黄的信札',       type:'private' },
+  { from:'催眠曲',         to:'流萤',             type:'private' },
+
+  // 互文
+  { from:'纳西索斯',       to:'水仙',             type:'inter' },
+  { from:'青鸾舞镜',       to:'水仙',             type:'inter' },
+];
+
+const TYPE_LABEL = {
+  seq:'承续', echo:'星子的回环', time:'时间流',
+  mirror:'镜像 · 自照', private:'私人场景', inter:'互文 · 神话',
+};
+
+const STYLE = {
+  seq:     { color:[ 74,  85, 112], weight:1.2, alpha:110, bend:0.08 },
+  echo:    { color:[255, 255, 255], weight:2.8, alpha:230, bend:0.48 },
+  time:    { color:[ 80, 128, 208], weight:1.8, alpha:180, bend:0.25 },
+  mirror:  { color:[192, 168, 240], weight:2.2, alpha:210, bend:0.40 },
+  private: { color:[208, 184, 240], weight:1.4, alpha:170, bend:0.20 },
+  inter:   { color:[224, 200, 128], weight:1.2, alpha:150, bend:0.35 },
+};
+
+const X_SPACING = 82;
+const REPEL_K = 24000;
+const ATTRACT_K = 0.010;
+const YZ_ITER = 750;
+const REST_LEN = {
+  seq: 60, echo: 260, time: 150, mirror: 200, private: 90, inter: 180,
+};
+
+let filter = { type: null, node: null };
+let hoveredNodeId = null;
+let mouseScreen = { x: -99999, y: -99999 };
+let mouseDownPos = null;
+let cachedScreen = {};
+let canvasEl;
+
+let nodes = [];
+let nodeMap = {};
+let R;
+const labelEls = {};
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  canvasEl = c.elt;
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+
+  const N = NODES.length;
+  const cx = (N - 1) / 2;
+  for (let i = 0; i < N; i++) {
+    const n = NODES[i];
+    let y0, z0;
+    if (n.region === 'core')       { y0 =   0; z0 =   0; }
+    else if (n.region === 'time')  { y0 =  90; z0 =  60; }
+    else if (n.region === 'private'){ y0 = -90; z0 =  60; }
+    else if (n.region === 'inter') { y0 = -50; z0 = -110; }
+    else                            { y0 =  20; z0 = -40; }
+    nodes.push({
+      id: n.id, region: n.region, order: i,
+      x: (i - cx) * X_SPACING,
+      y: y0 + random(-80, 80),
+      z: z0 + random(-80, 80),
+      vy: 0, vz: 0,
+    });
+  }
+  for (const n of nodes) nodeMap[n.id] = n;
+
+  computeYZLayout();
+  createLabels();
+  bindInteractions();
+  bindLegendClicks();
+  camera(0, -150, 1750, 0, 0, 0, 0, 1, 0);
+}
+
+function bindInteractions() {
+  canvasEl.addEventListener('mousemove', e => {
+    const rect = canvasEl.getBoundingClientRect();
+    mouseScreen.x = e.clientX - rect.left;
+    mouseScreen.y = e.clientY - rect.top;
+  });
+  canvasEl.addEventListener('mouseleave', () => {
+    mouseScreen.x = -99999; mouseScreen.y = -99999;
+    hoveredNodeId = null;
+  });
+  canvasEl.addEventListener('mousedown', e => {
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+  canvasEl.addEventListener('mouseup', e => {
+    if (!mouseDownPos) return;
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.hypot(dx, dy) < 5) handleCanvasClick(e.clientX, e.clientY);
+    mouseDownPos = null;
+  });
+}
+
+function bindLegendClicks() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.type;
+      filter.type = (filter.type === t) ? null : t;
+      filter.node = null;
+      updateLegendActive(); updateStatus();
+    });
+  });
+  document.getElementById('status-reset').addEventListener('click', () => {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  });
+}
+
+function handleCanvasClick(clientX, clientY) {
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  let bestId = null, bestDist = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mx, sp.y - my);
+    if (d < bestDist) { bestDist = d; bestId = id; }
+  }
+  if (bestId) {
+    filter.node = (filter.node === bestId) ? null : bestId;
+    filter.type = null;
+  } else {
+    filter.type = null; filter.node = null;
+  }
+  updateLegendActive(); updateStatus();
+}
+
+function updateLegendActive() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === filter.type);
+  });
+}
+
+function updateStatus() {
+  const s = document.getElementById('status');
+  const v = document.getElementById('status-val');
+  if (!filter.type && !filter.node) { s.classList.remove('on'); return; }
+  s.classList.add('on');
+  if (filter.type) v.textContent = TYPE_LABEL[filter.type];
+  if (filter.node) v.textContent = filter.node;
+}
+
+const DIM = 0.08;
+const NODE_DIM = 0.10;
+const NODE_NEIGHBOR = 0.9;
+
+function getEdgeAlpha(e) {
+  const base = STYLE[e.type].alpha;
+  if (filter.type && e.type !== filter.type) return base * DIM;
+  if (filter.node && e.from !== filter.node && e.to !== filter.node) return base * DIM;
+  return base;
+}
+
+function getNodeAlpha(id) {
+  if (filter.type) {
+    const touched = EDGES.some(e =>
+      e.type === filter.type && (e.from === id || e.to === id));
+    return touched ? 1 : NODE_DIM;
+  }
+  if (filter.node) {
+    if (id === filter.node) return 1;
+    const adjacent = EDGES.some(e =>
+      (e.from === id && e.to === filter.node) ||
+      (e.to === id && e.from === filter.node));
+    return adjacent ? NODE_NEIGHBOR : NODE_DIM;
+  }
+  return 1;
+}
+
+function computeYZLayout() {
+  for (let iter = 0; iter < YZ_ITER; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dy = b.y - a.y, dz = b.z - a.z;
+        let dist = Math.sqrt(dy*dy + dz*dz);
+        if (dist < 0.5) { dy += random(-1,1); dz += random(-1,1); dist = 0.5; }
+        const f = REPEL_K / (dist * dist);
+        const uy = dy/dist, uz = dz/dist;
+        a.vy -= uy*f; a.vz -= uz*f;
+        b.vy += uy*f; b.vz += uz*f;
+      }
+    }
+    for (const e of EDGES) {
+      const a = nodeMap[e.from], b = nodeMap[e.to];
+      if (!a || !b) continue;
+      const rest = REST_LEN[e.type];
+      let dy = b.y - a.y, dz = b.z - a.z;
+      let dist = Math.sqrt(dy*dy + dz*dz);
+      if (dist < 0.5) dist = 0.5;
+      const uy = dy/dist, uz = dz/dist;
+      const isAdjacent = Math.abs(a.order - b.order) === 1;
+      const k = isAdjacent ? ATTRACT_K*3 : ATTRACT_K;
+      const f = k * (dist - rest);
+      a.vy += uy*f*0.5; a.vz += uz*f*0.5;
+      b.vy -= uy*f*0.5; b.vz -= uz*f*0.5;
+    }
+    for (const n of nodes) {
+      n.vy *= 0.85; n.vz *= 0.85;
+      n.vy += random(-0.15, 0.15);
+      n.vz += random(-0.15, 0.15);
+      n.y += n.vy; n.z += n.vz;
+    }
+  }
+  let cy = 0, cz = 0;
+  for (const n of nodes) { cy += n.y; cz += n.z; }
+  cy /= nodes.length; cz /= nodes.length;
+  for (const n of nodes) { n.y -= cy; n.z -= cz; }
+}
+
+function draw() {
+  background(6, 8, 14);
+  orbitControl();
+  ambientLight(255);
+  updateHoverFromCache();
+
+  drawCurvedEdges('echo');
+  drawCurvedEdges('mirror');
+  drawCurvedEdges('time');
+  drawCurvedEdges('private');
+  drawCurvedEdges('seq');
+  drawDashedEdges('inter');
+
+  for (const n of nodes) {
+    const a = getNodeAlpha(n.id);
+    const isHover = (n.id === hoveredNodeId);
+    push();
+    translate(n.x, n.y, n.z);
+    noStroke();
+    if (n.region === 'core') {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 11 : 9);
+      ambientMaterial(160, 192, 255, 70 * a);
+      sphere(isHover ? 26 : 22);
+      ambientMaterial(96, 128, 208, 35 * a);
+      sphere(32);
+    } else if (n.region === 'time') {
+      ambientMaterial(168, 200, 240, 255 * a);
+      sphere(isHover ? 6 : 4.5);
+      ambientMaterial(64, 96, 160, 55 * a);
+      sphere(isHover ? 14 : 10);
+    } else if (n.region === 'private') {
+      ambientMaterial(208, 184, 240, 255 * a);
+      sphere(isHover ? 6 : 4.5);
+      ambientMaterial(112, 80, 160, 55 * a);
+      sphere(isHover ? 14 : 10);
+    } else if (n.region === 'inter') {
+      ambientMaterial(224, 200, 128, 255 * a);
+      sphere(isHover ? 5 : 3.5);
+    } else {
+      ambientMaterial(255, 255, 255, 255 * a);
+      sphere(isHover ? 5 : 3.5);
+    }
+    pop();
+  }
+  updateLabels();
+}
+
+function updateHoverFromCache() {
+  if (mouseScreen.x < -1000) { hoveredNodeId = null; return; }
+  let best = null, bestD = 28;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mouseScreen.x, sp.y - mouseScreen.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  hoveredNodeId = best;
+}
+
+function drawCurvedEdges(type) {
+  const s = STYLE[type];
+  noFill();
+  for (let ei = 0; ei < EDGES.length; ei++) {
+    const e = EDGES[ei];
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    const dir = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir.copy().mult(perp.dot(dir)));
+    if (perp.mag() < 0.01) perp.set(0, 1, 0);
+    perp.normalize();
+    const side = (ei % 2 === 0) ? 1 : -1;
+    const ctrl = p5.Vector.add(mid, perp.mult(s.bend * segLen * side));
+
+    const steps = Math.max(16, Math.floor(segLen / 8));
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(
+        u*u*A.x + 2*u*t*ctrl.x + t*t*B.x,
+        u*u*A.y + 2*u*t*ctrl.y + t*t*B.y,
+        u*u*A.z + 2*u*t*ctrl.z + t*t*B.z,
+      );
+    }
+    endShape();
+  }
+}
+
+function drawDashedEdges(type) {
+  const s = STYLE[type];
+  noFill();
+  for (const e of EDGES) {
+    if (e.type !== type) continue;
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e);
+    stroke(s.color[0], s.color[1], s.color[2], alpha);
+    strokeWeight(s.weight);
+    drawDashedLine(
+      createVector(a.x, a.y, a.z),
+      createVector(b.x, b.y, b.z),
+      8, 7
+    );
+  }
+}
+
+function drawDashedLine(a, b, dashLen, gapLen) {
+  const d = p5.Vector.sub(b, a);
+  const len = d.mag();
+  if (len < 0.01) return;
+  const dir = d.copy().normalize();
+  let pos = 0;
+  while (pos < len) {
+    const segEnd = Math.min(pos + dashLen, len);
+    const p1 = p5.Vector.add(a, dir.copy().mult(pos));
+    const p2 = p5.Vector.add(a, dir.copy().mult(segEnd));
+    line(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    pos = segEnd + gapLen;
+  }
+}
+
+function createLabels() {
+  const container = document.getElementById('labels');
+  container.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+  for (const n of nodes) {
+    const el = document.createElement('div');
+    let cls = 'label node-label';
+    if (n.region === 'core')    cls += ' core';
+    if (n.region === 'time')    cls += ' time';
+    if (n.region === 'private') cls += ' private';
+    if (n.region === 'inter')   cls += ' inter';
+    el.className = cls;
+    el.textContent = n.id;
+    container.appendChild(el);
+    labelEls['node_' + n.id] = el;
+  }
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return {
+    x: ((cx/cw)*0.5+0.5)*width,
+    y: (-(cy/cw)*0.5+0.5)*height,
+    depth: cw,
+  };
+}
+
+function placeLabel(el, sp, yOff = 0, extra = 1) {
+  if (!sp || sp.x < -200 || sp.x > width + 200 || sp.y < -200 || sp.y > height + 200) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.4, Math.min(1, 1 - (sp.depth - 600) / 3600));
+  el.style.opacity = (a * extra).toFixed(3);
+}
+
+function updateLabels() {
+  cachedScreen = {};
+  for (const n of nodes) {
+    const sp = worldToScreen(n.x, n.y, n.z);
+    cachedScreen[n.id] = sp;
+    const el = labelEls['node_' + n.id];
+    el.classList.toggle('hovered', n.id === hoveredNodeId);
+    placeLabel(el, sp, -18, getNodeAlpha(n.id));
+  }
+}
+
+function keyPressed() {
+  if (key === ' ') {
+    for (const n of nodes) {
+      let y0, z0;
+      if (n.region === 'core')       { y0 =   0; z0 =   0; }
+      else if (n.region === 'time')  { y0 =  90; z0 =  60; }
+      else if (n.region === 'private'){ y0 = -90; z0 =  60; }
+      else if (n.region === 'inter') { y0 = -50; z0 = -110; }
+      else                            { y0 =  20; z0 = -40; }
+      n.y = y0 + random(-100, 100);
+      n.z = z0 + random(-100, 100);
+      n.vy = 0; n.vz = 0;
+    }
+    computeYZLayout();
+  }
+  if (keyCode === 27) {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  }
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
