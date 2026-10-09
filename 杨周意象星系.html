@@ -1,0 +1,2163 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>杨牧 · 诗歌星系</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<style>
+  html, body { margin:0; height:100%; background:#02020a; overflow:hidden;
+               font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#ddd; }
+  #scene { position:fixed; inset:0; }
+  #scene canvas { display:block; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .label { position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+           pointer-events:none; font-weight:500; letter-spacing:.02em;
+           transition: color 0.15s, opacity 0.2s; }
+  .node-label { font-size:14px; color:#fff;
+                text-shadow:0 0 6px currentColor, 0 0 14px currentColor, 0 0 3px #000; }
+  .node-label.core { font-size:17px; font-weight:700; }
+  .node-label.mini { font-size:12px; font-weight:500; }
+  .node-label.mini.core { font-size:14px; font-weight:800; letter-spacing:.04em; }
+  .node-label.hovered { color:#fff !important;
+                        text-shadow:0 0 10px #fff, 0 0 22px #fff, 0 0 3px #000 !important; }
+  .ext-label { font-size:11px; font-style:italic; opacity:0.85;
+               color:#C080FF;
+               text-shadow:0 0 6px #C080FF, 0 0 12px #C080FF, 0 0 3px #000; }
+  .poem-name {
+    position:absolute; transform:translate(-50%,-50%);
+    font-size:26px; font-weight:800; letter-spacing:.26em;
+    padding:8px 22px; border-radius:10px;
+    cursor:pointer; pointer-events:auto;
+    transition: transform .3s ease-out, filter .3s, background .3s;
+    text-align:center; white-space:nowrap;
+    background:rgba(0,0,0,0.32); backdrop-filter:blur(3px);
+  }
+  .poem-name:hover { transform:translate(-50%,-50%) scale(1.15);
+                     filter:brightness(1.4); background:rgba(0,0,0,0.55); }
+  .poem-name .sub { display:block; font-size:11px; font-weight:400;
+                    letter-spacing:.3em; opacity:.65; margin-top:4px; }
+  #top-ui { position:fixed; inset:0; pointer-events:none; z-index:30; }
+  #poem-actions {
+    position:absolute; left:20px; top:20px;
+    display:flex; gap:8px; pointer-events:auto;
+    opacity:0; transform:translateY(-10px);
+    transition: opacity .4s, transform .4s;
+  }
+  #poem-actions.on { opacity:1; transform:translateY(0); }
+  #poem-actions button {
+    background:rgba(10,10,20,0.85); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,0.12); color:#ddd;
+    padding:9px 16px; border-radius:8px;
+    font-family:inherit; font-size:13px;
+    letter-spacing:.08em; cursor:pointer; transition:all .15s;
+  }
+  #poem-actions button:hover { background:rgba(255,208,96,0.12);
+    border-color:rgba(255,208,96,0.4); color:#FFD060; }
+  #legend {
+    position:absolute; right:20px; top:20px; z-index:20;
+    background:rgba(0,0,0,0.7); backdrop-filter:blur(10px);
+    padding:14px 18px; border-radius:10px;
+    font:12px/1.9 "PingFang SC","Microsoft YaHei",sans-serif;
+    pointer-events:none; min-width:150px;
+    border:1px solid rgba(255,255,255,0.1);
+    opacity:0; transform:translateX(20px);
+    transition: opacity .4s, transform .4s;
+  }
+  #legend.on { opacity:1; transform:translateX(0); }
+  #legend h4 { margin:0 0 8px; font-size:11px; color:#888;
+               letter-spacing:.2em; font-weight:500; text-transform:uppercase; }
+  #legend .item { display:flex; align-items:center; gap:10px;
+                  padding:3px 8px; margin:0 -8px; border-radius:4px;
+                  cursor:pointer; pointer-events:auto;
+                  transition: background 0.15s; }
+  #legend .item:hover { background:rgba(255,255,255,0.08); }
+  #legend .item.active { background:rgba(255,255,255,0.18); }
+  #legend .item.active .name { color:#fff; font-weight:600; }
+  #legend .item .name { color:#ccc; }
+  #legend .swatch { width:22px; height:2px; border-radius:1px; flex:0 0 auto; }
+  #legend .swatch.dash { background-image: repeating-linear-gradient(
+                        to right, currentColor 0, currentColor 4px,
+                        transparent 4px, transparent 7px); }
+  #status {
+    position:absolute; right:20px; top:calc(20px + 240px);
+    background:rgba(0,0,0,0.75); backdrop-filter:blur(10px);
+    padding:10px 16px; border-radius:8px;
+    font:12px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;
+    border:1px solid rgba(255,255,255,0.12);
+    opacity:0; transition: opacity .2s; pointer-events:auto;
+  }
+  #status.on { opacity:1; }
+  #status .k { color:#888; font-size:11px; letter-spacing:.15em; }
+  #status .v { color:#fff; font-size:14px; font-weight:600; margin-top:2px; }
+  #status .reset { color:#FFD060; font-size:11px; margin-top:6px;
+                   cursor:pointer; letter-spacing:.05em; }
+  #status .reset:hover { text-decoration:underline; }
+  #doc-panel {
+    position:absolute; left:0; top:0; bottom:0;
+    width:min(640px, 92vw);
+    background:rgba(4,4,12,0.94); backdrop-filter:blur(16px);
+    border-right:1px solid rgba(255,255,255,0.08);
+    z-index:40; transform:translateX(-100%);
+    transition:transform .4s cubic-bezier(.2,.8,.4,1);
+    pointer-events:auto; display:flex; flex-direction:column;
+  }
+  #doc-panel.on { transform:translateX(0); }
+  #doc-head { padding:18px 28px; border-bottom:1px solid rgba(255,255,255,0.08);
+              display:flex; justify-content:space-between; align-items:center; }
+  #doc-head .t { font-size:15px; color:#fff; letter-spacing:.15em; font-weight:600; }
+  #doc-head .tabs { display:flex; gap:6px; }
+  #doc-head .tabs button {
+    background:transparent; border:none; color:#888;
+    font-family:inherit; font-size:12px;
+    padding:6px 12px; border-radius:6px; cursor:pointer;
+    letter-spacing:.08em; transition: all .15s;
+  }
+  #doc-head .tabs button:hover { color:#ccc; background:rgba(255,255,255,0.05); }
+  #doc-head .tabs button.active { color:#FFD060; background:rgba(255,208,96,0.12); }
+  #doc-close { background:transparent; border:none; color:#666;
+               font-size:18px; cursor:pointer; padding:4px 8px; font-family:inherit; }
+  #doc-close:hover { color:#fff; }
+  #doc-body { flex:1; overflow-y:auto; padding:32px 44px 80px;
+              font-size:15px; line-height:2.1;
+              color:#c8c8d8; white-space:pre-wrap;
+              font-family:"Songti SC","SimSun",serif; }
+  #doc-body .poem-text { color:#e8e8f0; font-size:16px; line-height:2.3; }
+  #doc-body .comment { color:#b8c0d0; line-height:2.15;
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif; font-size:14px; }
+  #doc-body::-webkit-scrollbar { width:6px; }
+  #doc-body::-webkit-scrollbar-track { background:transparent; }
+  #doc-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; }
+  #hud { position:absolute; left:20px; bottom:20px;
+         color:#5a5a70; font:11px/1.6 monospace;
+         background:rgba(0,0,0,0.5);
+         padding:9px 14px; border-radius:6px;
+         pointer-events:none;
+         border:1px solid rgba(255,255,255,0.06);
+         transition: opacity .4s; }
+  #hud b { color:#aaa; }
+  #hud.on { opacity:0; }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+<div id="top-ui">
+  <div id="poem-actions">
+    <button id="back-btn">← 返回星系</button>
+    <button id="doc-btn">原文与解读</button>
+  </div>
+  <div id="legend">
+    <h4>关系类型</h4>
+    <div id="legend-items"></div>
+  </div>
+  <div id="status">
+    <div class="k">当前查看</div>
+    <div class="v" id="status-val"></div>
+    <div class="reset" id="status-reset">✕ 清除筛选</div>
+  </div>
+  <div id="hud">
+    <b>左键拖动</b> 旋转 · <b>右键拖动</b> 平移 · <b>滚轮</b> 缩放<br>
+    <b>点击诗歌名</b> 进入 · <b>Esc</b> 返回
+  </div>
+</div>
+<div id="doc-panel">
+  <div id="doc-head">
+    <div class="t" id="doc-title">—</div>
+    <div class="tabs">
+      <button id="tab-poem" class="active">原文</button>
+      <button id="tab-comment">解读</button>
+    </div>
+    <button id="doc-close">✕</button>
+  </div>
+  <div id="doc-body"></div>
+</div>
+<script>const SCENES = [
+  {
+    id:'yashang', title:'崖上', subtitle:'杨牧 · 1956', hue:[255,224,128],
+    universe:[-4200, 1900, 900], bgColor:[10, 14, 8], xSpacing:82,
+    regions:{ core:{y:0,z:0}, scene:{y:90,z:60}, imagine:{y:40,z:-70},
+              home:{y:-90,z:60}, inter:{y:-60,z:-110}, plain:{y:20,z:-40} },
+    regionStyle:{
+      core:   { c:[255,255,255], glow:[240,208,128], r:8, layers:[[70,24],[35,30]] },
+      scene:  { c:[255,232,160], glow:[176,144,32],  r:4.5, layers:[[55,14]] },
+      imagine:{ c:[224,176,128], glow:[160,96,32],   r:4.5, layers:[[55,14]] },
+      home:   { c:[168,216,168], glow:[64,128,64],   r:4.5, layers:[[55,14]] },
+      inter:  { c:[184,168,224], glow:[96,80,160],   r:3.5 },
+      plain:  { c:[255,255,255], glow:[180,180,180], r:3.5 }
+    },
+    labelCSS:{
+      core:   { color:'#FFFFFF', shadow:'0 0 12px #E8C860, 0 0 28px #A89020, 0 0 4px #000', weight:700, size:17 },
+      scene:  { color:'#FFE8A0', shadow:'0 0 8px #B09020, 0 0 16px #807010, 0 0 4px #000', weight:600 },
+      imagine:{ color:'#E0B080', shadow:'0 0 8px #A06020, 0 0 16px #804810, 0 0 4px #000', weight:600 },
+      home:   { color:'#A8D8A8', shadow:'0 0 8px #408040, 0 0 16px #306030, 0 0 4px #000', weight:600 },
+      inter:  { color:'#B8A8E0', shadow:'0 0 8px #6050A0, 0 0 16px #403880, 0 0 4px #000', italic:true },
+      plain:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'葵花满开的崖上',r:'core'},{id:'我们',r:'core'},
+      {id:'早来的鹧鸪',r:'scene'},{id:'远山云',r:'scene'},
+      {id:'泉水滴落',r:'scene'},{id:'伐木的声音',r:'scene'},
+      {id:'郁郁森林',r:'scene'},
+      {id:'伟大的宫廊',r:'imagine'},{id:'罗马石柱刀枪',r:'imagine'},
+      {id:'野狼化人',r:'imagine'},{id:'渡海黄金海岸',r:'imagine'},
+      {id:'乡愁',r:'home'},{id:'懒懒躺着',r:'home'},
+      {id:'静静地苍老',r:'home'},{id:'生火·狩猎·沐浴',r:'home'},
+      {id:'环环的岩石',r:'home'},
+      {id:'华兹华斯·水仙',r:'inter'}
+    ],
+    edges:[
+      ['葵花满开的崖上','早来的鹧鸪','seq'],
+      ['早来的鹧鸪','远山云','seq'],['远山云','泉水滴落','seq'],
+      ['泉水滴落','伐木的声音','seq'],['伐木的声音','郁郁森林','seq'],
+      ['郁郁森林','伟大的宫廊','seq'],['伟大的宫廊','罗马石柱刀枪','seq'],
+      ['罗马石柱刀枪','野狼化人','seq'],['野狼化人','渡海黄金海岸','seq'],
+      ['渡海黄金海岸','乡愁','seq'],['乡愁','懒懒躺着','seq'],
+      ['懒懒躺着','静静地苍老','seq'],['静静地苍老','环环的岩石','seq'],
+      ['环环的岩石','生火·狩猎·沐浴','seq'],
+      ['生火·狩猎·沐浴','葵花满开的崖上','echo'],
+      ['环环的岩石','泉水滴落','echo'],['静静地苍老','伐木的声音','echo'],
+      ['伐木的声音','伟大的宫廊','imagine'],
+      ['伐木的声音','罗马石柱刀枪','imagine'],
+      ['伐木的声音','野狼化人','imagine'],
+      ['伐木的声音','渡海黄金海岸','imagine'],
+      ['渡海黄金海岸','懒懒躺着','contrast'],
+      ['罗马石柱刀枪','葵花满开的崖上','contrast'],
+      ['野狼化人','我们','contrast'],['乡愁','静静地苍老','contrast'],
+      ['伟大的宫廊','早来的鹧鸪','contrast'],
+      ['我们','葵花满开的崖上','coexist'],['我们','远山云','coexist'],
+      ['我们','泉水滴落','coexist'],['我们','伐木的声音','coexist'],
+      ['我们','静静地苍老','coexist'],['我们','生火·狩猎·沐浴','coexist'],
+      ['葵花满开的崖上','华兹华斯·水仙','inter'],
+      ['懒懒躺着','华兹华斯·水仙','inter']
+    ],
+    styles:{
+      seq:{c:[106,106,72],w:1.2,a:110,bend:0.08},
+      echo:{c:[255,224,128],w:2.6,a:210,bend:0.45},
+      imagine:{c:[208,128,64],w:2.0,a:200,bend:0.30},
+      contrast:{c:[255,80,48],w:2.6,a:220,bend:0.35},
+      coexist:{c:[128,192,128],w:1.6,a:180,bend:0.20},
+      inter:{c:[184,168,224],w:1.2,a:150,bend:0.40,dashed:true}
+    },
+    typeLabels:{seq:'承续',echo:'回环',imagine:'历史想象',
+                contrast:'对照',coexist:'两人共在',inter:'互文 · 华兹华斯'},
+    restLen:{seq:60,echo:220,imagine:180,contrast:240,coexist:130,inter:200},
+    drawOrder:['echo','contrast','imagine','coexist','seq','inter'],
+    poemText:`崖上
+
+然后来到葵花满开的崖上
+ 然后卧下，惊起一只早来的鹧鸪
+我指着远山说，迷人的云
+ 看泉水滴落，听啊，听那伐木的声音
+
+整日，我们听着，那伐木的声音
+季节正开始，森林郁郁索要
+谁将穿过那伟大的宫廊？
+穿过千万支古罗马的石柱和刀枪
+ 看野狼变化，然后成人
+  渡海去黄金色的海岸
+——让自己有点乡愁，当潮来的时候
+
+你笑了，你说，但我们只懒懒躺着
+在葵花满开的崖上
+我们只想到，如何静静地苍老
+
+水泉低落，穿过环环的岩石
+且听着那遥遥伐木的声音
+我们在高处，拥抱着
+生火，狩猎，沐浴，而且苍老……`,
+    comment:`这仍旧是杨牧在1956-1966年间创作的诗歌，十几二十多岁，带有很明显的早期风格。这个时期他以"叶珊"为笔名，流连于浪漫主义诗歌的怀抱。
+
+这首诗歌虽然基本锚定在此刻此处的崖上，两人卧着闲聊、倾听、想象的画面，但来往的时间梭子依旧明显。譬如开篇就用了一个"然后"，仿佛在这首诗之前已经度过许多时光。
+
+"季节正开始，森林郁郁索要"这一句好雄伟。一整个季节开始了，不是一天开始了。"索要"这个词则是横来一笔。
+
+"谁将穿过那伟大的宫廊／穿过千万支古罗马的石柱和刀枪／看野狼变化，然后成人／渡海去黄金色的海岸"——这几句将时间迅速拉到了古希腊罗马文明的时代，用了许多神话故事，是英雄远征的故事。
+
+"你笑了，你说，但我们只懒懒躺着／在葵花满开的崖上／我们只想到，如何静静地苍老"——但他们不要当英雄。年轻的恋人，更愿意在宁静的悬崖上，过一种古朴原始的生活，直至老去。
+
+到了最后这两段，开始以倒序重复开头两段的意象，形成了一个回环结构。`
+  },
+
+  {
+    id:'buzou', title:'脚步', subtitle:'杨牧 · 1959', hue:[255,208,120],
+    universe:[-1500, 3200, -700], bgColor:[3, 3, 8], xSpacing:78,
+    regions:{ inner:{y:-60,z:40}, china:{y:80,z:60}, future:{y:20,z:-80} },
+    regionStyle:{
+      inner: { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      china: { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      future:{ c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] }
+    },
+    labelCSS:{
+      inner:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      china:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      future: { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'蝉声',r:'inner'},{id:'烦躁',r:'inner'},{id:'匾额',r:'china'},
+      {id:'马匹',r:'china'},{id:'尘埃',r:'china'},{id:'水湄',r:'china'},
+      {id:'年龄',r:'inner'},{id:'沉睡者',r:'inner'},{id:'巨蟒',r:'inner'},
+      {id:'宫殿',r:'china'},{id:'日影',r:'china'},{id:'盘膝',r:'inner'},
+      {id:'空白',r:'inner'},{id:'水瓢',r:'inner'},{id:'旅人',r:'inner'},
+      {id:'灰烬',r:'inner'},{id:'念珠',r:'inner'},{id:'星月',r:'future'},
+      {id:'北北西',r:'future'},{id:'瞭望者',r:'future'},{id:'森林',r:'future'},
+      {id:'东方诸星',r:'future'},{id:'月亮偏右',r:'future'},{id:'渡河',r:'future'}
+    ],
+    edges:[
+      ['蝉声','烦躁','seq'],['烦躁','匾额','seq'],['匾额','马匹','seq'],
+      ['马匹','尘埃','seq'],['尘埃','水湄','seq'],['水湄','年龄','seq'],
+      ['年龄','沉睡者','seq'],['沉睡者','巨蟒','seq'],['巨蟒','宫殿','seq'],
+      ['宫殿','日影','seq'],['日影','盘膝','seq'],['盘膝','空白','seq'],
+      ['空白','水瓢','seq'],['水瓢','旅人','seq'],['旅人','灰烬','seq'],
+      ['灰烬','念珠','seq'],['念珠','星月','seq'],['星月','北北西','seq'],
+      ['北北西','瞭望者','seq'],['瞭望者','森林','seq'],['森林','东方诸星','seq'],
+      ['东方诸星','月亮偏右','seq'],['月亮偏右','渡河','seq'],
+      ['沉睡者','巨蟒','meta'],['念珠','星月','meta'],['灰烬','念珠','meta'],
+      ['蝉声','盘膝','cont'],['烦躁','空白','cont'],['匾额','北北西','cont'],
+      ['宫殿','森林','cont'],['水湄','渡河','cont'],
+      ['蝉声','烦躁','sens'],['马匹','尘埃','sens'],['水瓢','旅人','sens'],
+      ['马匹','马齿徒增','inter'],['水瓢','一瓢饮','inter'],
+      ['念珠','佛家','inter'],['北北西','罗盘','inter'],
+      ['瞭望者','西方冒险','inter'],['渡河','苏东坡','inter'],
+      ['匾额','宫殿','space'],['匾额','马匹','space'],['马匹','宫殿','space'],
+      ['宫殿','水湄','space'],['水湄','马匹','space'],
+      ['盘膝','空白','space'],['盘膝','水瓢','space'],['空白','水瓢','space'],
+      ['念珠','星月','space'],['念珠','灰烬','space'],['星月','灰烬','space'],
+      ['北北西','森林','space'],['北北西','月亮偏右','space'],
+      ['森林','月亮偏右','space'],['森林','渡河','space'],['月亮偏右','渡河','space']
+    ],
+    externals:[
+      {id:'马齿徒增',from:'马匹',dir:[0,0.5,-1]},
+      {id:'一瓢饮',from:'水瓢',dir:[0,-0.5,-1]},
+      {id:'佛家',from:'念珠',dir:[0,1,1]},
+      {id:'罗盘',from:'北北西',dir:[0,0.6,-1]},
+      {id:'西方冒险',from:'瞭望者',dir:[0,-0.4,1]},
+      {id:'苏东坡',from:'渡河',dir:[0,0.5,-1]}
+    ],
+    styles:{
+      seq:   {c:[255,208,96],w:1.4,a:110,bend:0.10},
+      meta:  {c:[255,80,160],w:2.2,a:200,bend:0.28},
+      cont:  {c:[80,200,255],w:1.1,a:140,bend:0.42},
+      sens:  {c:[128,255,128],w:1.0,a:150,bend:0.18},
+      inter: {c:[192,128,255],w:1.2,a:140,bend:0.35,external:true},
+      space: {c:[165,165,200],w:2.2,a:105,bend:0.55}
+    },
+    typeLabels:{seq:'承续',meta:'隐喻',cont:'对照',sens:'感官',
+                inter:'互文',space:'空间共在'},
+    restLen:{seq:55,meta:45,cont:130,sens:40,inter:90,space:60},
+    drawOrder:['space','seq','sens','meta','cont','inter'],
+    poemText:`脚步
+陪我走入蝉声，走入烦躁
+昂首数匾上的马匹
+枣色的踢起尘埃
+在水湄数他的年龄。沉睡者啊
+你的双手是巨蟒
+
+他走过宫殿，如同渐移的日影
+冉冉升上
+来我盘膝的地方
+那空白为我遗留
+为昨日的我
+
+昔日喝水的地方，你正站立
+我偏首望你
+青色的水瓢流去
+旅人的唇流去
+
+给我灰烬吧！给我喧哗中的寂寞
+未来的星月是念珠
+你拨过一串，拨熄了寻找的灯火
+
+北北西，美丽的瞭望者
+走出森林，你听到东方诸星的嗥号吗？
+月亮偏右，我们以快速渡河`,
+    comment:`杨牧写作《脚步》这首诗的时候十九岁，在入学东海大学历史系一个月后。
+
+开篇仿佛走入梦境，蝉声和烦躁都在夏末的背景里。马匹的扬蹄打破了静止，时间由此开启。沉睡者是一个过去的我，于此处被唤醒。巨蟒的意象由此使得诗歌染上神秘而原始的色彩。而从马匹到年龄的关系，我怀疑是诗人想到了"马齿徒增"这样的隐喻。
+
+脚步走过了蝉声，走过了烦躁，走过了匾下，走过了宫殿。日影的移动，也是往昔的我的记忆的移动。"盘膝"意味着我在这里是一个静坐冥思的人。
+
+水、瓢、喝为什么这样放在一起，我怀疑诗人是想到了"弱水三千，我只取一瓢饮"，这个佛教故事，正和之前"盘膝"静坐的我的意象契合。
+
+陈旧的、古老的东西都不见了，从上一段的星月开始，脚步来到漫天繁星的绮丽星空之下，沉睡者的我，变成了美丽的瞭望者。终于走出了莽荒的森林，视线投向东方，星星正大声呼号，寂静没有了，取而代之的是启程的号角。月光之下，马蹄踏碎流水，我们终于渡河。
+
+北北西与东方，在这里又不得不让人想到杨牧诗歌里那种中西结合的特征。
+
+迎接着十九岁少年的海峡东侧，一场壮观的黎明即将在寂静的星月夜后升起。`
+  },
+
+  {
+    id:'guduguo', title:'孤独国', subtitle:'周梦蝶 · 1964', hue:[220,180,255],
+    universe:[2600, 1700, 1100], bgColor:[3, 3, 8], xSpacing:76,
+    regions:{
+      anchor:{y:0,z:0}, body:{y:-20,z:120}, scene:{y:80,z:50},
+      void:{y:-80,z:-70}, garden:{y:90,z:-60}, inner:{y:-80,z:60},
+      time:{y:20,z:-100}, buddha:{y:520,z:0,noJitter:true,isBuddha:true}
+    },
+    regionStyle:{
+      anchor:{ c:[255,255,255], glow:[160,208,240], r:5, layers:[[90,16],[40,28]] },
+      body:  { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      scene: { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      void:  { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      garden:{ c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      inner: { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      time:  { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] },
+      buddha:{ c:[255,230,170], glow:[230,180,90], r:7, extraGlow:[210,150,60,50,34], layers:[[110,20]] }
+    },
+    labelCSS:{
+      anchor:{ color:'#DCEEFF', shadow:'0 0 10px #A0D0F0, 0 0 24px #60A8E0, 0 0 3px #000' },
+      buddha:{ color:'#FFE0A0', shadow:'0 0 12px #E0A840, 0 0 28px #C08020, 0 0 3px #000',
+               letterSpacing:'.15em', weight:600, size:15 },
+      body:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      scene: { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      void:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      garden:{ color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      inner: { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' },
+      time:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'趺坐',r:'body'},{id:'负雪山峰',r:'anchor'},
+      {id:'黏的气候',r:'scene'},{id:'天鹅绒的雪',r:'scene'},
+      {id:'嬲骚的市声',r:'void'},{id:'时间的反刍',r:'inner'},
+      {id:'蛇·猫头鹰·人面兽',r:'void'},{id:'曼陀罗花',r:'garden'},
+      {id:'橄榄树',r:'garden'},{id:'玉蝴蝶',r:'garden'},
+      {id:'文字·经纬·千佛',r:'void'},{id:'沉默的力',r:'inner'},
+      {id:'白昼如夜',r:'time'},{id:'绮丽的夜',r:'time'},
+      {id:'寒冷如酒',r:'scene'},{id:'诗和美',r:'inner'},
+      {id:'虚空手谈',r:'void'},{id:'忘言的繁星',r:'scene'},
+      {id:'过去',r:'time'},{id:'未来',r:'time'},
+      {id:'现在',r:'body'},{id:'佛家',r:'buddha'}
+    ],
+    edges:[
+      ['趺坐','负雪山峰','seq'],['负雪山峰','黏的气候','seq'],
+      ['黏的气候','天鹅绒的雪','seq'],['天鹅绒的雪','嬲骚的市声','seq'],
+      ['嬲骚的市声','时间的反刍','seq'],['时间的反刍','蛇·猫头鹰·人面兽','seq'],
+      ['蛇·猫头鹰·人面兽','曼陀罗花','seq'],['曼陀罗花','橄榄树','seq'],
+      ['橄榄树','玉蝴蝶','seq'],['玉蝴蝶','文字·经纬·千佛','seq'],
+      ['文字·经纬·千佛','沉默的力','seq'],['沉默的力','白昼如夜','seq'],
+      ['白昼如夜','绮丽的夜','seq'],['绮丽的夜','寒冷如酒','seq'],
+      ['寒冷如酒','诗和美','seq'],['诗和美','虚空手谈','seq'],
+      ['虚空手谈','忘言的繁星','seq'],['忘言的繁星','过去','seq'],
+      ['过去','未来','seq'],['未来','现在','seq'],
+      ['嬲骚的市声','时间的反刍','cont'],
+      ['蛇·猫头鹰·人面兽','曼陀罗花','cont'],
+      ['蛇·猫头鹰·人面兽','橄榄树','cont'],
+      ['蛇·猫头鹰·人面兽','玉蝴蝶','cont'],
+      ['文字·经纬·千佛','沉默的力','cont'],
+      ['白昼如夜','绮丽的夜','cont'],
+      ['过去','未来','cont'],['过去','现在','cont'],['未来','现在','cont'],
+      ['橄榄树','圣经','inter'],['玉蝴蝶','庄周','inter'],
+      ['负雪山峰','趺坐','space'],['负雪山峰','黏的气候','space'],
+      ['负雪山峰','天鹅绒的雪','space'],['负雪山峰','嬲骚的市声','space'],
+      ['负雪山峰','时间的反刍','space'],['负雪山峰','蛇·猫头鹰·人面兽','space'],
+      ['负雪山峰','曼陀罗花','space'],['负雪山峰','橄榄树','space'],
+      ['负雪山峰','玉蝴蝶','space'],['负雪山峰','文字·经纬·千佛','space'],
+      ['负雪山峰','沉默的力','space'],['负雪山峰','白昼如夜','space'],
+      ['负雪山峰','绮丽的夜','space'],['负雪山峰','寒冷如酒','space'],
+      ['负雪山峰','诗和美','space'],['负雪山峰','虚空手谈','space'],
+      ['负雪山峰','忘言的繁星','space'],['负雪山峰','过去','space'],
+      ['负雪山峰','未来','space'],['负雪山峰','现在','space'],
+      ['趺坐','佛家','buddha'],['曼陀罗花','佛家','buddha'],
+      ['文字·经纬·千佛','佛家','buddha'],['虚空手谈','佛家','buddha'],
+      ['时间的反刍','佛家','buddha'],['沉默的力','佛家','buddha'],
+      ['忘言的繁星','佛家','buddha'],['过去','佛家','buddha'],
+      ['未来','佛家','buddha'],['现在','佛家','buddha']
+    ],
+    externals:[
+      {id:'圣经',from:'橄榄树',dir:[0,-1.0,0.8]},
+      {id:'庄周',from:'玉蝴蝶',dir:[0,-1.0,-0.5]}
+    ],
+    styles:{
+      seq:    {c:[255,208,96],w:1.4,a:110,bend:0.10},
+      cont:   {c:[255,80,160],w:1.6,a:200,bend:0.32},
+      inter:  {c:[192,128,255],w:1.2,a:140,bend:0.35,external:true},
+      space:  {c:[160,208,232],w:0.9,a:42,bend:0.45},
+      buddha: {c:[210,160,70],w:1.4,a:150,bend:0.28}
+    },
+    typeLabels:{seq:'承续',cont:'对照',inter:'互文',space:'雪峰场景',buddha:'佛家底色'},
+    restLen:{seq:55,cont:130,inter:90,space:220,buddha:260},
+    drawOrder:['space','buddha','seq','cont','inter'],
+    poemText:`孤独国
+
+昨夜，我又梦见我
+赤裸裸地趺坐在负雪的山峰上。
+
+这里的气候黏在冬天与春天的接口处
+（这里的雪是温柔如天鹅绒的）
+这里没有嬲骚的市声
+只有时间嚼着时间的反刍的微响
+这里没有眼镜蛇、猫头鹰与人面兽
+只有曼陀罗花、橄榄树和玉蝴蝶
+这里没有文字、经纬、千手千眼佛
+触处是一团浑浑莽莽沉默的吞吐的力
+这里白昼幽阒窈窕如夜
+夜比白昼更绮丽、丰实、光灿
+
+而这里的寒冷如酒，封藏着诗和美
+甚至虚空也懂手谈，
+邀来满天忘言的繁星……
+
+过去伫足不去，未来不来
+我是「现在」的臣仆，也是帝皇。`,
+    comment:`这首诗非常地周梦蝶。看过《他们在岛屿写作》，就知道周梦蝶是一个瘦弱清贫的形象，日常行止如一老僧。那么这首诗再是他的形象和口吻不过了。一个在孤独的、渺绝尘寰的雪山之山盘坐的老僧。
+
+这里的气候黏在冬天与春天的接口处——这里的黏字很有意思，它让整个画面变得柔和起来，气候是黏的，像米糕一样。
+
+这里没有嬲骚的市声／只有时间嚼着时间的反刍的微响——其实"嬲骚的市声"才是周梦蝶的常态，因为他常年在闹市经营一个书摊。但这里是安静的。
+
+这里没有文字、经纬、千手千眼佛／触处是一团浑浑莽莽沉默的吞吐的力／这里白昼幽阒窈窕如夜／夜比白昼更绮丽、丰实、光灿——一切具体的、有复杂文本信息的东西都消失了，连光也没有，黑暗、混沌、沉默，却比光照之下的具体更令人感到充实明亮。
+
+而这里的寒冷如酒，封藏着诗和美／甚至虚空也懂手谈，／邀来满天忘言的繁星……——寒冷也是醉人的东西了，空无一物的天空里点缀着繁星。
+
+过去伫足不去，未来不来／我是「现在」的臣仆，也是帝皇。——那么此刻就足够丰足了，除我之外只有混沌和虚无的世界，星子是唯一的对谈者，时间是唯一的对谈者，我是我的国度的帝王，即便是孤独的。`
+  },
+
+  {
+    id:'shuixian', title:'水仙花', subtitle:'杨牧 · 1958', hue:[160,192,255],
+    universe:[4700, 2400, -400], bgColor:[6, 8, 14], xSpacing:82,
+    regions:{ core:{y:0,z:0}, time:{y:90,z:60}, private:{y:-90,z:60},
+              inter:{y:-50,z:-110}, plain:{y:20,z:-40} },
+    regionStyle:{
+      core:   { c:[255,255,255], glow:[160,192,255], r:9, layers:[[70,22],[35,32]] },
+      time:   { c:[168,200,240], glow:[64,96,160],   r:4.5, layers:[[55,14]] },
+      private:{ c:[208,184,240], glow:[112,80,160],  r:4.5, layers:[[55,14]] },
+      inter:  { c:[224,200,128], glow:[160,140,60],  r:3.5 },
+      plain:  { c:[255,255,255], glow:[180,180,180], r:3.5 }
+    },
+    labelCSS:{
+      core:   { color:'#FFFFFF', shadow:'0 0 12px #A0C0FF, 0 0 28px #6080D0, 0 0 4px #000', weight:700, size:17 },
+      time:   { color:'#A8C8F0', shadow:'0 0 8px #4060A0, 0 0 16px #304880, 0 0 4px #000', weight:600 },
+      private:{ color:'#D0B8F0', shadow:'0 0 8px #7050A0, 0 0 16px #503880, 0 0 4px #000', weight:600 },
+      inter:  { color:'#E0C880', shadow:'0 0 8px #A08030, 0 0 16px #806020, 0 0 4px #000', italic:true },
+      plain:  { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'过去的星子',r:'core'},{id:'今日的星子',r:'core'},{id:'水仙',r:'core'},
+      {id:'共楫一舟',r:'time'},{id:'时间的长流',r:'time'},{id:'七洋',r:'time'},
+      {id:'千载一梦',r:'time'},{id:'水波浩瀚',r:'time'},{id:'两鬓星华',r:'time'},
+      {id:'争执',r:'private'},{id:'催眠曲',r:'private'},{id:'流萤',r:'private'},
+      {id:'星光花影的足踝',r:'private'},{id:'荒山野渡',r:'private'},
+      {id:'北窗',r:'private'},{id:'发黄的信札',r:'private'},
+      {id:'纳西索斯',r:'inter'},{id:'青鸾舞镜',r:'inter'}
+    ],
+    edges:[
+      ['过去的星子','争执','seq'],['争执','催眠曲','seq'],
+      ['催眠曲','流萤','seq'],['流萤','星光花影的足踝','seq'],
+      ['星光花影的足踝','荒山野渡','seq'],['荒山野渡','共楫一舟','seq'],
+      ['共楫一舟','时间的长流','seq'],['时间的长流','七洋','seq'],
+      ['七洋','千载一梦','seq'],['千载一梦','水波浩瀚','seq'],
+      ['水波浩瀚','两鬓星华','seq'],['两鬓星华','水仙','seq'],
+      ['水仙','今日的星子','seq'],['今日的星子','北窗','seq'],
+      ['北窗','发黄的信札','seq'],
+      ['过去的星子','今日的星子','echo'],
+      ['发黄的信札','过去的星子','echo'],['北窗','催眠曲','echo'],
+      ['共楫一舟','七洋','time'],['共楫一舟','千载一梦','time'],
+      ['共楫一舟','两鬓星华','time'],['时间的长流','水波浩瀚','time'],
+      ['时间的长流','千载一梦','time'],['七洋','两鬓星华','time'],
+      ['水仙','纳西索斯','mirror'],['水仙','青鸾舞镜','mirror'],
+      ['水仙','发黄的信札','mirror'],['水仙','过去的星子','mirror'],
+      ['水仙','两鬓星华','mirror'],
+      ['争执','催眠曲','private'],['流萤','星光花影的足踝','private'],
+      ['北窗','发黄的信札','private'],['催眠曲','流萤','private'],
+      ['纳西索斯','水仙','inter'],['青鸾舞镜','水仙','inter']
+    ],
+    styles:{
+      seq:    {c:[74,85,112],w:1.2,a:110,bend:0.08},
+      echo:   {c:[255,255,255],w:2.8,a:230,bend:0.48},
+      time:   {c:[80,128,208],w:1.8,a:180,bend:0.25},
+      mirror: {c:[192,168,240],w:2.2,a:210,bend:0.40},
+      private:{c:[208,184,240],w:1.4,a:170,bend:0.20},
+      inter:  {c:[224,200,128],w:1.2,a:150,bend:0.35,dashed:true}
+    },
+    typeLabels:{seq:'承续',echo:'星子的回环',time:'时间流',
+                mirror:'镜像 · 自照',private:'私人场景',inter:'互文 · 神话'},
+    restLen:{seq:60,echo:260,time:150,mirror:200,private:90,inter:180},
+    drawOrder:['echo','mirror','time','private','seq','inter'],
+    poemText:`水仙花
+
+过去的星子在背后低喊着
+我们不为什么地争执
+躺下，在催眠曲里
+我细数它们坠落谷底，寂然化为流萤
+轻轻飘过我们星光花影的足踝
+
+唉！这许是荒山野渡
+而我们共楫一舟
+顺时间的长流悠悠滑下
+不觉已过七洋
+千载一梦，水波浩瀚
+回首看你已是两鬓星华的了
+
+水仙在古希腊的典籍里俯视自己
+
+─今日的星子在背后低喊着
+我们对坐在北窗下
+矇眬传阅发黄的信札`,
+    comment:`这是杨牧在十几二十几岁的年纪写下的一首诗，即便读到最后它有种沧桑的感觉，仿佛暮年语气。
+
+它的结构很简单：有一个"我"，和一个"你"。两人不知因何争执，随后躺下，一同乘船，顺着时间的长流悠悠滑下。过了许久，回头望去，两人已经老去。
+
+诗歌的第一句就引入了时间："过去的星子在背后低喊着"——已经"过去的""身后的"星星，意味着以下是回忆的视角。
+
+"而我们共楫一舟／顺时间的长流悠悠滑下／不觉已过七洋／千载一梦，水波浩瀚"——这几句是想象的时间和空间。它写出了恋爱或青春记忆里一种奇异的感觉。
+
+随后杨牧借典故写了一句转折："水仙在古希腊的典籍里俯视自己"——此处的水仙，召唤的是希腊神话中的纳西索斯。
+
+整首诗的结构，可以说在这两个句子的呼应中展开："过去的星子在背后低喊着"以及"今日的星子在背后低喊着"。`
+  },
+
+  {
+    id:'qingyan', title:'青烟', subtitle:'杨牧', hue:[160,240,224],
+    universe:[-3800, -2200, 600], bgColor:[2, 16, 14], xSpacing:88,
+    regions:{ core:{y:0,z:0}, past:{y:80,z:-60}, flower:{y:-80,z:60}, plain:{y:20,z:40} },
+    regionStyle:{
+      core:  { c:[255,255,255], glow:[160,240,224], r:9, layers:[[70,20],[35,32]] },
+      past:  { c:[143,191,184], glow:[48,104,96],   r:4.5, layers:[[50,10]] },
+      flower:{ c:[224,255,248], glow:[160,240,224], r:6, layers:[[60,14]] },
+      plain: { c:[232,255,250], glow:[160,240,224], r:3.5, layers:[[50,8]] }
+    },
+    labelCSS:{
+      core:  { color:'#FFFFFF', shadow:'0 0 12px #A0F0E0, 0 0 28px #50B8A0, 0 0 4px #000', weight:700, size:17 },
+      flower:{ color:'#E0FFF8', shadow:'0 0 10px #A0F0E0, 0 0 20px #60C0A8, 0 0 4px #000', weight:600 },
+      past:  { color:'#8FBFB8', shadow:'0 0 6px #306860, 0 0 12px #204840, 0 0 4px #000', italic:true },
+      plain: { color:'#E8FFFA', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'青烟',r:'core'},{id:'从树林中来的人',r:'core'},{id:'我们',r:'core'},
+      {id:'树林',r:'plain'},{id:'寺塔',r:'plain'},{id:'桥',r:'plain'},
+      {id:'楼前',r:'plain'},{id:'夭亡的春季',r:'plain'},{id:'春灯',r:'plain'},
+      {id:'风尘',r:'plain'},
+      {id:'垣堞',r:'past'},{id:'石阶',r:'past'},{id:'井湄',r:'past'},
+      {id:'白花',r:'flower'},{id:'时间的静寂',r:'flower'},{id:'新绿',r:'flower'}
+    ],
+    edges:[
+      ['树林','青烟','seq'],['青烟','寺塔','seq'],['寺塔','桥','seq'],
+      ['桥','我们','seq'],['我们','夭亡的春季','seq'],['夭亡的春季','楼前','seq'],
+      ['楼前','树林','seq'],['树林','从树林中来的人','seq'],
+      ['从树林中来的人','春灯','seq'],['春灯','风尘','seq'],
+      ['风尘','垣堞','seq'],['垣堞','石阶','seq'],['石阶','井湄','seq'],
+      ['井湄','白花','seq'],['白花','时间的静寂','seq'],
+      ['时间的静寂','新绿','seq'],
+      ['青烟','我们','vanish'],['夭亡的春季','青烟','vanish'],
+      ['从树林中来的人','树林','vanish'],
+      ['垣堞','新绿','space'],['垣堞','石阶','space'],
+      ['石阶','井湄','space'],['寺塔','青烟','space'],
+      ['白花','时间的静寂','meta'],['青烟','夭亡的春季','meta'],
+      ['从树林中来的人','新绿','meta'],
+      ['垣堞','我们','past'],['我们','井湄','past'],
+      ['从树林中来的人','我们','past']
+    ],
+    styles:{
+      seq:    {c:[42,110,104],w:1.4,a:150,bend:0.08},
+      vanish: {c:[160,240,224],w:2.0,a:180,bend:0.30},
+      space:  {c:[80,168,160],w:1.6,a:180,bend:0.20},
+      meta:   {c:[255,255,255],w:2.8,a:230,bend:0.35},
+      past:   {c:[122,154,150],w:1.2,a:150,bend:0.50,dashed:true}
+    },
+    typeLabels:{seq:'承续',vanish:'消逝',space:'空间延伸',
+                meta:'隐喻 · 核心',past:'过去的过去'},
+    restLen:{seq:70,vanish:130,space:90,meta:80,past:200},
+    drawOrder:['meta','vanish','space','seq','past'],
+    poemText:`青烟
+
+有人从树林中来，树林的风息了
+
+远处升起一片青烟
+
+仿佛是一支歌，升起来，赞美
+
+那愚騃的，荒凉的寺塔
+
+突然烟散了，我们从桥下走过
+
+想念夭亡的春季
+
+又坐在楼前，久久无语
+
+只见有人从树林中来
+
+树林的风慢慢息了……
+
+他的眼染着风尘的颜色？
+
+当他从树林中来
+
+当他看到我们高高挂起的春灯
+
+也看到你我，默坐，等候着他
+
+但回头却是新绿的垣堞——
+
+你曾翻身跃出的短垣和矮堞
+
+一朵白花握着时间的静寂
+
+已经从石阶伸向井湄了`,
+    comment:`这首诗最精彩的我想是最后一段，意象的丰富性和句子的凝练度都超出之前，特别有意思的是前两句，将垣堞拆出来又说一遍，像在玩分形游戏。一朵白花握着时间的静寂，瘦弱的白花却能够握住无垠的时间，靠的是一种静寂。
+
+没有明确说他和你是谁，但人物出现的背景是荒凉的寺塔、夭亡的春季、风尘、青烟，总之是苍凉的背景，且看来是时间久远的了。
+
+全诗前几段在时空上都是线性前进的，只在最后一段有小小的一个分叉加自回环。通篇的意象集中在逝去的东西，色彩是迷蒙暗淡的，声音是寂静的。`
+  },
+
+  {
+    id:'gushi', title:'故事', subtitle:'杨牧 · 1966', hue:[120,180,255],
+    universe:[-900, -3200, -1200], bgColor:[3, 8, 16], xSpacing:82,
+    special:'gushi', regions:{},
+    regionStyle:{
+      core:{ c:[255,255,255], glow:[160,200,255], r:10, layers:[[60,22]] },
+      sub: { c:[200,224,255], glow:[140,180,240], r:7,  layers:[[55,14]] },
+      ring:{ c:[230,240,255], glow:[140,180,240], r:3.8, layers:[[50,8]] }
+    },
+    labelCSS:{
+      core:{ color:'#FFFFFF', shadow:'0 0 10px #A0C8FF, 0 0 24px #6098E0, 0 0 4px #000', weight:700, size:17 },
+      sub: { color:'#C8E0FF', shadow:'0 0 8px #6098E0, 0 0 16px #6098E0, 0 0 4px #000', weight:600, size:14 },
+      ring:{ color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'潮水',r:'core',pos:[0,100,0]},
+      {id:'回旋的曲律',r:'core',pos:[-360,380,0]},
+      {id:'缠绵的论述',r:'core',pos:[360,380,0]},
+      {id:'Metamorphosis',r:'core',pos:[0,620,-80]},
+      {id:'诗经重章叠句',r:'sub',pos:[0,860,0]},
+      {id:'记忆',r:'ring',pos:[750,0,0]},
+      {id:'心',r:'ring',pos:[650,0,375]},
+      {id:'我们',r:'ring',pos:[375,0,650]},
+      {id:'分离',r:'ring',pos:[0,0,750]},
+      {id:'日与夜',r:'ring',pos:[-375,0,650]},
+      {id:'故事',r:'ring',pos:[-650,0,375]},
+      {id:'生死俯仰',r:'ring',pos:[-750,0,0]},
+      {id:'迢迢赶赴',r:'ring',pos:[-650,0,-375]},
+      {id:'海面',r:'ring',pos:[-375,0,-650]},
+      {id:'白鸟',r:'ring',pos:[0,0,-750]},
+      {id:'船痕',r:'ring',pos:[375,0,-650]},
+      {id:'季节',r:'ring',pos:[650,0,-375]}
+    ],
+    edges:[
+      ['潮水','回旋的曲律','struct'],['潮水','缠绵的论述','struct'],
+      ['回旋的曲律','缠绵的论述','pair'],
+      ['Metamorphosis','潮水','tone'],
+      ['Metamorphosis','回旋的曲律','tone'],
+      ['Metamorphosis','缠绵的论述','tone'],
+      ['诗经重章叠句','潮水','echo'],
+      ['诗经重章叠句','回旋的曲律','echo'],
+      ['潮水','记忆','symbol'],['潮水','心','symbol'],
+      ['潮水','我们','symbol'],['潮水','分离','symbol'],
+      ['潮水','日与夜','symbol'],['潮水','故事','symbol'],
+      ['潮水','生死俯仰','symbol'],['潮水','迢迢赶赴','symbol'],
+      ['潮水','海面','symbol'],['潮水','白鸟','symbol'],
+      ['潮水','船痕','symbol'],['潮水','季节','symbol']
+    ],
+    seqOrder:['潮水','记忆','心','我们','分离','日与夜','故事',
+              '回旋的曲律','缠绵的论述',
+              '生死俯仰','迢迢赶赴','海面','白鸟','船痕','季节','潮水'],
+    styles:{
+      struct:{c:[255,255,255],w:3.4,a:250},
+      pair:  {c:[224,238,255],w:1.8,a:200},
+      tone:  {c:[128,192,255],w:2.2,a:210},
+      echo:  {c:[160,208,255],w:1.4,a:180},
+      self:  {c:[64,168,255],w:3.0,a:240},
+      symbol:{c:[80,128,208],w:1.5,a:180},
+      seq:   {c:[48,96,160],w:1.4,a:150}
+    },
+    typeLabels:{struct:'结构 · 元',pair:'对句',tone:'音律',
+                echo:'呼应',self:'自指 · 回环',symbol:'象征',seq:'承续（沿环）'},
+    drawOrder:['struct','pair','tone','echo','seq','symbol','self'],
+    poemText:`故事
+
+（用韵 Philip Glass, Metamorphosis 2）
+
+假如潮水不断以记忆的速度
+我以同样的心，假如潮水曾经
+曾经在我们分离的日与夜
+将故事完完整整讲过一遍了
+回旋的曲律，缠绵的论述，生死俯仰
+一种迢迢赶赴的姿势
+在持续转凉的海面上
+如白鸟飞越船行残留的痕迹
+深入季节微弱的气息
+假如潮水曾经
+我以同样的心`,
+    comment:`这首诗的结构是一个自指的环。潮水既是诗里的意象，也是这首诗本身。
+
+外围的十二个词——记忆、心、我们、分离、日与夜、故事、生死俯仰、迢迢赶赴、海面、白鸟、船痕、季节——构成一个闭环。它们不是先后出现的意象，而是彼此缠绕、不断回旋的同一个主题的不同侧面。
+
+上方是三个核心："潮水""回旋的曲律""缠绵的论述"，它们之间用白色粗线相连，形成这首诗的内核。Metamorphosis（变形）在更上方，是这三个词共同指向的那个东西。
+
+"诗经重章叠句"是这个结构的元层面——它说明这首诗在形式上借鉴了什么。
+
+"回旋的曲律"和"缠绵的论述"同时指向"潮水"——这就是全诗的自指：潮水是这首诗，这首诗是潮水。`
+  },
+
+  {
+    id:'xuhanyu', title:'续韩愈山石', subtitle:'杨牧 · 1970', hue:[255,100,60],
+    universe:[2100, -2500, 700], bgColor:[10, 8, 18], xSpacing:82,
+    regions:{ core:{y:0,z:0}, hermit:{y:90,z:60}, world:{y:-90,z:60},
+              pose:{y:0,z:-70}, inter:{y:-30,z:-120}, plain:{y:20,z:-40} },
+    regionStyle:{
+      core:  { c:[255,255,255], glow:[200,100,80], r:8, layers:[[70,20],[35,30]] },
+      hermit:{ c:[168,192,224], glow:[64,96,160],  r:4.5, layers:[[50,10]] },
+      world: { c:[255,176,152], glow:[192,80,56],  r:4.5, layers:[[50,10]] },
+      pose:  { c:[208,168,255], glow:[128,80,192], r:5, layers:[[55,12]] },
+      inter: { c:[232,200,120], glow:[160,140,60], r:3.5 },
+      plain: { c:[255,255,255], glow:[180,180,180], r:3.5 }
+    },
+    labelCSS:{
+      core:  { color:'#FFFFFF', shadow:'0 0 12px #C86450, 0 0 28px #A04030, 0 0 4px #000', weight:700, size:17 },
+      hermit:{ color:'#A8C0E0', shadow:'0 0 8px #4060A0, 0 0 16px #305080, 0 0 4px #000', weight:600 },
+      world: { color:'#FFB098', shadow:'0 0 8px #C05038, 0 0 16px #A03020, 0 0 4px #000', weight:600 },
+      pose:  { color:'#D0A8FF', shadow:'0 0 8px #8050C0, 0 0 16px #6040A0, 0 0 4px #000', weight:600 },
+      inter: { color:'#E8C878', shadow:'0 0 8px #A08030, 0 0 16px #806020, 0 0 4px #000', italic:true },
+      plain: { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'山石（原诗）',r:'core'},{id:'我（韩愈）',r:'core'},
+      {id:'寺僧',r:'hermit'},{id:'佛画',r:'hermit'},{id:'清月',r:'hermit'},
+      {id:'山红涧碧',r:'hermit'},{id:'水声激激',r:'hermit'},
+      {id:'松枥十围',r:'hermit'},{id:'衡山楚神',r:'hermit'},
+      {id:'蕉林',r:'hermit'},{id:'踏涧石',r:'hermit'},
+      {id:'妇人',r:'world'},{id:'帏幔',r:'world'},{id:'蜂群·栀子花',r:'world'},
+      {id:'金钗罗裳',r:'world'},{id:'睡鞋',r:'world'},{id:'团扇',r:'world'},
+      {id:'飞萤',r:'world'},{id:'玄武门之变',r:'world'},
+      {id:'宫廷怔忡',r:'world'},{id:'贬谪赦书',r:'world'},
+      {id:'酒楼',r:'world'},{id:'弹筝人',r:'world'},{id:'司马长卿',r:'world'},
+      {id:'李白·学剑求仙',r:'pose'},{id:'我的学业',r:'pose'},
+      {id:'假装不胜宿醉',r:'pose'},{id:'三都两京赋',r:'pose'},
+      {id:'杜甫·鄜州',r:'inter'},{id:'班婕妤·团扇',r:'inter'},
+      {id:'杜牧·秋夕',r:'inter'},{id:'唐语林·绛桃柳枝',r:'inter'}
+    ],
+    edges:[
+      ['寺僧','佛画','seq'],['佛画','妇人','seq'],['妇人','帏幔','seq'],
+      ['帏幔','玄武门之变','seq'],['玄武门之变','清月','seq'],
+      ['清月','我的学业','seq'],['我的学业','衡山楚神','seq'],
+      ['衡山楚神','贬谪赦书','seq'],['贬谪赦书','李白·学剑求仙','seq'],
+      ['李白·学剑求仙','金钗罗裳','seq'],['金钗罗裳','睡鞋','seq'],
+      ['睡鞋','团扇','seq'],['团扇','飞萤','seq'],['飞萤','杜甫·鄜州','seq'],
+      ['杜甫·鄜州','松枥十围','seq'],['松枥十围','酒楼','seq'],
+      ['酒楼','弹筝人','seq'],['弹筝人','假装不胜宿醉','seq'],
+      ['假装不胜宿醉','三都两京赋','seq'],['三都两京赋','司马长卿','seq'],
+      ['寺僧','妇人','debunk'],['佛画','帏幔','debunk'],
+      ['清月','金钗罗裳','debunk'],['山红涧碧','蜂群·栀子花','debunk'],
+      ['水声激激','玄武门之变','debunk'],['松枥十围','酒楼','debunk'],
+      ['踏涧石','睡鞋','debunk'],['蕉林','宫廷怔忡','debunk'],
+      ['山石（原诗）','妇人','debunk'],
+      ['李白·学剑求仙','三都两京赋','pose'],
+      ['假装不胜宿醉','弹筝人','pose'],
+      ['我的学业','宫廷怔忡','pose'],['我的学业','贬谪赦书','pose'],
+      ['团扇','班婕妤·团扇','inter'],['飞萤','杜牧·秋夕','inter'],
+      ['金钗罗裳','唐语林·绛桃柳枝','inter'],
+      ['杜甫·鄜州','山石（原诗）','inter'],
+      ['司马长卿','我（韩愈）','confess'],
+      ['我（韩愈）','山石（原诗）','confess'],
+      ['我（韩愈）','假装不胜宿醉','confess']
+    ],
+    styles:{
+      seq:    {c:[122,106,128],w:1.2,a:110,bend:0.08},
+      debunk: {c:[255,80,48],w:3.0,a:230,bend:0.32},
+      pose:   {c:[155,107,200],w:1.8,a:190,bend:0.40},
+      inter:  {c:[200,168,80],w:1.2,a:150,bend:0.35,dashed:true},
+      confess:{c:[255,208,96],w:2.4,a:220,bend:0.45}
+    },
+    typeLabels:{seq:'承续',debunk:'拆穿 · 隐↔尘',pose:'诗人姿态',
+                inter:'互文 · 典故',confess:'自我承认'},
+    restLen:{seq:60,debunk:240,pose:150,inter:110,confess:200},
+    drawOrder:['debunk','confess','pose','seq','inter'],
+    poemText:`续韩愈七言古诗〈山石〉
+
+1
+
+我与寺僧谈佛画，天明时
+脚湿衣冷想的竟是城里的
+蜂群在栀子花间漫舞
+竟是一妇人之坐卧
+一帏幔之升降，或人
+行走于笔砚经书的边缘
+谈论玄武门之变
+我对着月色，思维于
+押韵险巇的汉魏诗；我的愤懑
+是比主人的面容更虚无的
+虽说我还须登衡山，谒楚神
+面对豪雨刷亮的蕉林。所谓志向
+满布泥泞如贬谪的南方
+饮酒为蛇影所惊
+歌唱赦书疾行
+
+2
+
+我与寺僧谈佛画，灯熄前
+忽然忆及杨柳树和
+激激的流水也曾枕在耳际教我
+浪漫如早岁的诗人一心学剑求仙
+金钗罗裳和睡鞋就是爱情？
+我的学业是沼泽的腐臭和
+宫廷的怔忡
+我爱团扇
+飞萤
+但律诗寄内如无事件如鄜州
+我只许渡江面对松枥十围
+坐在酒楼上
+等待流浪的弹筝人
+并假装不胜宿醉
+我不该携带三都两京赋
+却爱极了司马长卿`,
+    comment:`杨牧《续韩愈七言古诗〈山石〉》的锋芒，不在"续"，而在"反续"。韩愈原诗写游山寺，最后说"人生如此自可乐，岂必局束为人鞿"，很容易被读成山林自由、超脱尘网。但韩愈本人并非真想归隐：他有强烈的仕进与政治志向，也留下宴饮、歌舞、艳姬、侍女等生活痕迹。后世"绛桃、柳枝"侍妾说虽多出晚出笔记，不宜全作信史，但"复杂、世俗的韩愈"并非凭空捏造。杨牧正是抓住这个裂缝，把"隐逸诗"制造的纯粹隐士人格撕开。
+
+其一，是人世的三重内容同时闯入山林。韩愈原诗里是清月、百虫、山红涧碧；杨牧却写"脚湿衣冷想的竟是城里的／蜂群……一妇人之坐卧／一帏幔之升降"，紧接着又是"笔砚经书""玄武门之变"。女人、文学、政治，三者几乎同时出现，构成"人世"的完整结构：欲望、文章、权力。身体在山中，意识却同时回到闺阁、书案与朝堂。所谓"远离尘嚣"，立刻被这三重现实击穿。三者缺一不可，也同等重要，任何单独一方都不足以完成拆解。
+
+其二，是对"诗人姿态"本身的拆穿。杨牧写李白式"学剑求仙"的浪漫，又用"金钗罗裳和睡鞋就是爱情？"把它降回身体；写"团扇""飞萤""鄜州"，把私人柔情从大历史中裁出；再让韩愈"坐在酒楼上／等待流浪的弹筝人／并假装不胜宿醉"。山林隐士与酒楼名士，一个高洁，一个潇洒，但"假装"二字点破：两者都可能是表演。而"我的学业是沼泽的腐臭和／宫廷的怔忡"，则把文学与政治一并从庄严高处拉下，露出其身体性的难受与焦虑。
+
+最后一句“我不该携带三京两都赋，却爱极了司马长卿”，正是杨牧对真实的韩愈的看法。`
+  },
+
+  {
+    id:'yanling', title:'延陵季子挂剑', subtitle:'杨牧 · 1966', hue:[255,120,120],
+    universe:[4500, -1100, -1000], bgColor:[3, 3, 8], xSpacing:78,
+    regions:{ core:{y:0,z:0}, xia:{y:80,z:60}, ru:{y:-80,z:60},
+              tragic:{y:0,z:-80}, scene:{y:20,z:-60} },
+    regionStyle:{
+      core:  { c:[255,255,255], glow:[255,208,96], r:7, layers:[[70,18],[35,28]] },
+      xia:   { c:[255,144,144], glow:[200,32,32],  r:4.5, layers:[[50,10]] },
+      ru:    { c:[160,200,255], glow:[32,96,192],  r:4.5, layers:[[50,10]] },
+      tragic:{ c:[255,224,160], glow:[192,128,32], r:4.5, layers:[[50,10]] },
+      scene: { c:[255,255,255], glow:[180,200,255], r:3.5, layers:[[55,8]] }
+    },
+    labelCSS:{
+      core:  { color:'#FFFFFF', shadow:'0 0 12px #FFD060, 0 0 28px #C08020, 0 0 4px #000', weight:700, size:17 },
+      xia:   { color:'#FF9090', shadow:'0 0 8px #C02020, 0 0 16px #C02020, 0 0 4px #000' },
+      ru:    { color:'#A0C8FF', shadow:'0 0 8px #2060C0, 0 0 16px #2060C0, 0 0 4px #000' },
+      tragic:{ color:'#FFE0A0', shadow:'0 0 8px #C08020, 0 0 16px #C08020, 0 0 4px #000' },
+      scene: { color:'#FFFFFF', shadow:'0 0 6px #000, 0 0 12px #000, 0 0 4px #000' }
+    },
+    nodes:[
+      {id:'剑',r:'core'},{id:'季札（我）',r:'core'},{id:'徐君',r:'core'},
+      {id:'侠',r:'xia'},{id:'弓马刀剑',r:'xia'},{id:'旧创',r:'xia'},
+      {id:'出鞘',r:'xia'},{id:'瞑目起舞',r:'xia'},{id:'江南女子',r:'xia'},
+      {id:'荷芰',r:'xia'},
+      {id:'儒者',r:'ru'},{id:'诵诗三百',r:'ru'},{id:'夫子',r:'ru'},
+      {id:'子路',r:'ru'},{id:'子夏',r:'ru'},{id:'公侯院宅',r:'ru'},
+      {id:'北地胭脂',r:'ru'},{id:'齐鲁衣冠',r:'ru'},
+      {id:'封剑',r:'tragic'},{id:'墓林',r:'tragic'},{id:'萧的七孔',r:'tragic'},
+      {id:'中原幻灭',r:'tragic'},{id:'非侠非儒',r:'tragic'},{id:'渔樵',r:'tragic'},
+      {id:'划桨人',r:'tragic'},
+      {id:'山冈',r:'scene'},{id:'漂泊',r:'scene'},{id:'新月',r:'scene'},
+      {id:'捣衣',r:'scene'},{id:'江畔夕暮',r:'scene'}
+    ],
+    edges:[
+      ['山冈','漂泊','seq'],['漂泊','剑','seq'],['剑','出鞘','seq'],
+      ['出鞘','江南女子','seq'],['江南女子','季札（我）','seq'],
+      ['季札（我）','儒者','seq'],['儒者','封剑','seq'],
+      ['封剑','萧的七孔','seq'],['萧的七孔','渔樵','seq'],['渔樵','划桨人','seq'],
+      ['侠','儒者','tension'],['弓马刀剑','诵诗三百','tension'],
+      ['出鞘','封剑','tension'],['旧创','北地胭脂','tension'],
+      ['瞑目起舞','公侯院宅','tension'],
+      ['夫子','公侯院宅','inter'],['子路','墓林','inter'],
+      ['子夏','公侯院宅','inter'],['北地胭脂','齐鲁衣冠','inter'],
+      ['萧的七孔','中原幻灭','inter'],
+      ['季札（我）','徐君','promise'],['徐君','剑','promise'],
+      ['江南女子','荷芰','promise'],
+      ['封剑','非侠非儒','tragic'],['墓林','非侠非儒','tragic'],
+      ['中原幻灭','非侠非儒','tragic'],['非侠非儒','划桨人','tragic'],
+      ['旧创','江畔夕暮','tragic'],['新月','捣衣','tragic']
+    ],
+    styles:{
+      seq:     {c:[255,208,96],w:1.4,a:110,bend:0.10},
+      tension: {c:[255,48,48],w:2.8,a:220,bend:0.30},
+      inter:   {c:[192,128,255],w:1.2,a:140,bend:0.35},
+      promise: {c:[255,224,160],w:2.0,a:200,bend:0.25},
+      tragic:  {c:[192,128,32],w:1.8,a:180,bend:0.40}
+    },
+    typeLabels:{seq:'承续',tension:'张力 · 侠儒',inter:'互文 · 典故',
+                promise:'承诺',tragic:'悲剧收束'},
+    restLen:{seq:55,tension:200,inter:100,promise:120,tragic:150},
+    drawOrder:['tension','promise','seq','inter','tragic'],
+    poemText:`延陵季子挂剑
+
+我总是听到这山冈沉沉的怨恨
+最初的漂泊是蓄意的，怎能解释
+多少聚散的冷漠？罢了罢了！
+我为你瞑目起舞
+水草的萧瑟和新月的寒凉
+异邦晚来的捣衣紧追着我的身影
+嘲弄我荒废的剑术。这手臂上
+还有我遗忘的旧创呢
+酒酣的时候才血红
+如江畔夕暮里的花朵
+
+你我曾在烈日下枯坐——
+一对濒危的荷芰：那是北游前
+最令我悲伤的夏的胁迫
+也是江南女子纤弱的歌声啊
+以针的微痛和线的缝合
+令我宝剑出鞘
+立下南旋赠予的承诺……
+谁知北地胭脂，齐鲁衣冠
+诵诗三百竟使我变成
+一介迟迟不返的儒者！
+
+谁知我封了剑（人们传说
+你就这样念着念着
+就这样死了）只有萧的七孔
+犹黑暗地诉说我中原以后的幻灭
+在早年，弓马刀剑本是
+比辩论修辞更重要的课程
+自从夫子在陈在蔡
+子路暴死，子夏入魏
+我们都凄惶地奔走于公侯的院宅
+所以我封了剑，束了发，诵诗三百
+俨然一能言善道的儒者了……
+
+呵呵儒者，儒者断腕于你渐深的
+墓林，此后非侠非儒
+这宝剑的青光或将辉煌你我于
+寂寞的秋夜
+你死于怀人，我病为渔樵
+那疲倦的划桨人就是
+曾经傲慢过，敦厚过的我`,
+    comment:`延陵季子指的是春秋时期吴国公子季札，国君赞其贤能，有意让他即位，他认为自己并非长子，敬谢不敏，去国就中原诸国周游，学习儒家礼法。路上经徐，徐国国君爱他的剑，他说我还要周游列国呢，等我回来一定送给你。只是他回到徐国时，徐君已死。季札乃将宝剑挂于徐君墓前，完成了自己的承诺。
+
+这本来只是个重信守诺的故事，杨牧却将它支为一个侠与儒之间的选择的张力的空间。
+
+吴越重兵器，季札却要抛弃这种尚武的习俗，学习儒道，只是春秋大乱，哪有儒道的生存空间，孔子围于蔡，子路暴死，战争迭起，可是我们的主人公又早已封了剑了。既然如此，还不如早将剑送给知己呢？却也不行了，江南的莲花早已凋谢，等待着我的故人也萎谢了。仓忙一生，什么也没得到，失去了本来的力量，失去了知交故人。
+
+有意思的是这首诗里似乎对武力是颂扬的，而对儒者则有轻蔑的意思。这种态度有点像沈从文对湘西野蛮生命力和强烈情感力的赞扬，和对现代文明虚伪且虚弱的批判。`
+  }
+];
+
+for (const s of SCENES) {
+  if (!s.drawOrder) s.drawOrder = Object.keys(s.styles);
+  if (!s.poemText) s.poemText = '';
+  if (!s.comment) s.comment = '';
+}
+
+const REPEL_K = 24000;
+const ATTRACT_K = 0.010;
+const ITER = 700;
+const THUMB_RADIUS = 560;
+
+function precomputePoem(scene) {
+  randomSeed(scene.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+  const nodes = [];
+  const nodeMap = {};
+  const N = scene.nodes.length;
+  const cx = (N - 1) / 2;
+  scene.nodes.forEach((n, i) => {
+    const region = scene.regions[n.r] || { y:0, z:0 };
+    const noJitter = region.noJitter;
+    const hasExplicit = !!n.pos;
+    const node = {
+      id: n.id, region: n.r, order: i,
+      x: hasExplicit ? n.pos[0] : (i - cx) * scene.xSpacing,
+      y: hasExplicit ? n.pos[1] : (region.y + (noJitter ? 0 : random(-80, 80))),
+      z: hasExplicit ? n.pos[2] : (region.z + (noJitter ? 0 : random(-80, 80))),
+      vy: 0, vz: 0,
+      isBuddha: region.isBuddha || false,
+      locked: hasExplicit
+    };
+    nodes.push(node);
+    nodeMap[n.id] = node;
+  });
+  const EDGES = scene.edges.map(e => ({from:e[0], to:e[1], type:e[2]}));
+  scene._edges = EDGES;
+  scene._nodeMap = nodeMap;
+  scene._nodes = nodes;
+  if (scene.externals) {
+    scene._externals = [];
+    for (const ext of scene.externals) {
+      const src = nodeMap[ext.from];
+      if (!src) continue;
+      const d = createVector(ext.dir[0], ext.dir[1], ext.dir[2]).normalize();
+      scene._externals.push({ id: ext.id, from: src, dir: d });
+    }
+  }
+  for (let iter = 0; iter < ITER; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        if (a.locked && b.locked) continue;
+        let dy = b.y - a.y, dz = b.z - a.z;
+        let dist = Math.sqrt(dy*dy + dz*dz);
+        if (dist < 0.5) { dy += random(-1,1); dz += random(-1,1); dist = 0.5; }
+        const f = REPEL_K / (dist * dist);
+        const uy = dy/dist, uz = dz/dist;
+        if (!a.locked && !a.isBuddha) { a.vy -= uy*f; a.vz -= uz*f; }
+        if (!b.locked && !b.isBuddha) { b.vy += uy*f; b.vz += uz*f; }
+      }
+    }
+    for (const e of EDGES) {
+      const a = nodeMap[e.from], b = nodeMap[e.to];
+      if (!a || !b) continue;
+      if (a.locked && b.locked) continue;
+      const rest = scene.restLen[e.type] || 100;
+      let dy = b.y - a.y, dz = b.z - a.z;
+      let dist = Math.sqrt(dy*dy + dz*dz);
+      if (dist < 0.5) dist = 0.5;
+      const uy = dy/dist, uz = dz/dist;
+      const isAdj = Math.abs(a.order - b.order) === 1;
+      const k = isAdj ? ATTRACT_K*3 : ATTRACT_K;
+      const f = k * (dist - rest);
+      if (!a.locked && !a.isBuddha) { a.vy += uy*f*0.5; a.vz += uz*f*0.5; }
+      if (!b.locked && !b.isBuddha) { b.vy -= uy*f*0.5; b.vz -= uz*f*0.5; }
+    }
+    for (const n of nodes) {
+      if (n.isBuddha || n.locked) continue;
+      n.vy *= 0.85; n.vz *= 0.85;
+      n.vy += random(-0.15, 0.15);
+      n.vz += random(-0.15, 0.15);
+      n.y += n.vy; n.z += n.vz;
+    }
+  }
+  let cy = 0, cz = 0, count = 0;
+  for (const n of nodes) {
+    if (!n.isBuddha && !n.locked) { cy += n.y; cz += n.z; count++; }
+  }
+  if (count > 0) {
+    cy /= count; cz /= count;
+    for (const n of nodes) {
+      if (!n.isBuddha && !n.locked) { n.y -= cy; n.z -= cz; }
+    }
+  }
+  let maxR = 0;
+  for (const n of nodes) {
+    if (n.isBuddha) continue;
+    const r = Math.sqrt(n.x*n.x + n.y*n.y + n.z*n.z);
+    if (r > maxR) maxR = r;
+  }
+  scene._localRadius = maxR || 300;
+  scene._thumbScale = THUMB_RADIUS / scene._localRadius;
+}
+
+let currentSceneIdx = null;
+let viewMode = 'constellation';
+let cam = {
+  center: [0, 0, 0], radius: 10500, theta: 0.4, phi: 0.25,
+  targetCenter: [0, 0, 0], targetRadius: 10500
+};
+let R;
+let canvasEl;
+let hoveredNodeId = null;
+let hoveredPoemIdx = null;
+let filter = { type:null, node:null };
+let mouseScreen = { x: -99999, y: -99999 };
+let mouseDownPos = null;
+let isDragging = false;
+let isPanning = false;
+let lastMouse = { x:0, y:0 };
+let cachedScreen = {};
+const labelEls = {};
+let docTab = 'poem';
+
+function setup() {
+  const scene = document.getElementById('scene');
+  const c = createCanvas(windowWidth, windowHeight, WEBGL);
+  c.parent('scene');
+  canvasEl = c.elt;
+  R = _renderer;
+  textAlign(CENTER, CENTER);
+  for (const s of SCENES) precomputePoem(s);
+  bindInteractions();
+  bindUI();
+  rebuildLabels();
+}
+
+function updateCamera() {
+  cam.center[0] += (cam.targetCenter[0] - cam.center[0]) * 0.25;
+  cam.center[1] += (cam.targetCenter[1] - cam.center[1]) * 0.25;
+  cam.center[2] += (cam.targetCenter[2] - cam.center[2]) * 0.25;
+  cam.radius += (cam.targetRadius - cam.radius) * 0.25;
+  if (!isFinite(cam.center[0])) cam.center[0] = 0;
+  if (!isFinite(cam.center[1])) cam.center[1] = 0;
+  if (!isFinite(cam.center[2])) cam.center[2] = 0;
+  if (!isFinite(cam.radius) || cam.radius < 100) cam.radius = 3000;
+  const cph = Math.cos(cam.phi);
+  const sph = Math.sin(cam.phi);
+  const cth = Math.cos(cam.theta);
+  const sth = Math.sin(cam.theta);
+  const ex = cam.center[0] + cam.radius * cph * sth;
+  const ey = cam.center[1] + cam.radius * sph;
+  const ez = cam.center[2] + cam.radius * cph * cth;
+  camera(ex, ey, ez, cam.center[0], cam.center[1], cam.center[2], 0, 1, 0);
+}
+
+function draw() {
+  if (viewMode === 'constellation') {
+    background(2, 2, 10);
+  } else {
+    const s = SCENES[currentSceneIdx];
+    const bg = s.bgColor || [3,3,8];
+    background(bg[0], bg[1], bg[2]);
+  }
+  ambientLight(255);
+  updateCamera();
+  updateHoverFromCache();
+  if (viewMode === 'constellation') {
+    drawStars();
+    for (let i = 0; i < SCENES.length; i++) {
+      drawPoemThumbnail(SCENES[i], i, hoveredPoemIdx === i);
+    }
+  } else {
+    drawSinglePoem();
+  }
+  updateLabels();
+}
+
+function drawStars() {
+  push();
+  randomSeed(2024);
+  strokeWeight(1);
+  for (let i = 0; i < 1500; i++) {
+    const x = random(-16000, 16000);
+    const y = random(-13000, 13000);
+    const z = random(-16000, 16000);
+    const bright = random(20, 75);
+    const tint = random(0, 1);
+    if (tint < 0.7) stroke(255, 255, 255, bright);
+    else if (tint < 0.85) stroke(200, 220, 255, bright * 0.9);
+    else stroke(255, 220, 200, bright * 0.9);
+    point(x, y, z);
+  }
+  strokeWeight(1.4);
+  for (let i = 0; i < 450; i++) {
+    const x = random(-13000, 13000);
+    const y = random(-11000, 11000);
+    const z = random(-13000, 13000);
+    const bright = random(60, 120);
+    const tint = random(0, 1);
+    if (tint < 0.75) stroke(255, 255, 255, bright);
+    else if (tint < 0.88) stroke(210, 225, 255, bright * 0.9);
+    else stroke(255, 225, 205, bright * 0.9);
+    point(x, y, z);
+  }
+  strokeWeight(1.8);
+  for (let i = 0; i < 90; i++) {
+    const x = random(-11000, 11000);
+    const y = random(-9000, 9000);
+    const z = random(-11000, 11000);
+    stroke(255, 255, 255, 160);
+    point(x, y, z);
+  }
+  pop();
+}
+
+function drawPoemThumbnail(s, idx, hovered) {
+  const scale = s._thumbScale;
+  const [ux, uy, uz] = s.universe;
+  push();
+  translate(ux, uy, uz);
+  noFill();
+  for (let ei = 0; ei < s._edges.length; ei++) {
+    const e = s._edges[ei];
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const style = s.styles[e.type];
+    if (!style || style.external) continue;
+    const ax = a.x*scale, ay = a.y*scale, az = a.z*scale;
+    const bx = b.x*scale, by = b.y*scale, bz = b.z*scale;
+    const alpha = hovered ? Math.min(255, style.a * 1.4) : style.a;
+    stroke(style.c[0], style.c[1], style.c[2], alpha);
+    strokeWeight(Math.max(0.7, style.w * 0.7));
+    line(ax, ay, az, bx, by, bz);
+  }
+  if (s.special === 'gushi' && s.seqOrder) {
+    const seqStyle = s.styles.seq;
+    stroke(seqStyle.c[0], seqStyle.c[1], seqStyle.c[2], seqStyle.a);
+    strokeWeight(Math.max(0.7, seqStyle.w * 0.7));
+    noFill();
+    for (let i = 1; i < s.seqOrder.length; i++) {
+      const a = s._nodeMap[s.seqOrder[i-1]];
+      const b = s._nodeMap[s.seqOrder[i]];
+      if (!a || !b) continue;
+      line(a.x*scale, a.y*scale, a.z*scale, b.x*scale, b.y*scale, b.z*scale);
+    }
+    const selfStyle = s.styles.self;
+    stroke(selfStyle.c[0], selfStyle.c[1], selfStyle.c[2], selfStyle.a);
+    strokeWeight(Math.max(0.7, selfStyle.w * 0.7));
+    for (const srcId of ['回旋的曲律', '缠绵的论述']) {
+      const src = s._nodeMap[srcId];
+      const tgt = s._nodeMap['潮水'];
+      if (!src || !tgt) continue;
+      const A = createVector(src.x*scale, src.y*scale, src.z*scale);
+      const B = createVector(tgt.x*scale, tgt.y*scale, tgt.z*scale);
+      const side = srcId === '回旋的曲律' ? -1 : 1;
+      const ctrl = createVector((A.x+B.x)/2 + side*60, (A.y+B.y)/2 + 80, (A.z+B.z)/2);
+      const steps = 30;
+      beginShape();
+      for (let j = 0; j <= steps; j++) {
+        const t = j / steps, u = 1 - t;
+        vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+               u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+               u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+      }
+      endShape();
+    }
+  }
+  for (const n of s._nodes) {
+    const st = s.regionStyle[n.region] || { c:[255,255,255], glow:[200,200,200], r:3.5 };
+    const isCore = st.r >= 6 || n.isBuddha;
+    const baseR = isCore ? 5.5 : 3.5;
+    push();
+    translate(n.x*scale, n.y*scale, n.z*scale);
+    noStroke();
+    if (st.glow) {
+      ambientMaterial(st.glow[0], st.glow[1], st.glow[2], isCore ? 55 : 30);
+      sphere(baseR * 3.2);
+      ambientMaterial(st.glow[0], st.glow[1], st.glow[2], isCore ? 110 : 65);
+      sphere(baseR * 1.9);
+    }
+    ambientMaterial(st.c[0], st.c[1], st.c[2], 255);
+    sphere(baseR);
+    if (isCore) {
+      ambientMaterial(255, 255, 255, 210);
+      sphere(baseR * 0.45);
+    }
+    pop();
+  }
+  pop();
+}
+
+function drawSinglePoem() {
+  if (currentSceneIdx === null) return;
+  const s = SCENES[currentSceneIdx];
+  const [ux, uy, uz] = s.universe;
+  push();
+  translate(ux, uy, uz);
+  if (s.special === 'gushi') {
+    drawGushi(s);
+  } else {
+    for (const type of s.drawOrder) {
+      const style = s.styles[type];
+      if (!style) continue;
+      if (style.external) drawExternals(s, type);
+      else if (style.dashed) drawDashedCurvedEdges(s, type);
+      else drawCurvedEdges(s, type);
+    }
+  }
+  for (const n of s._nodes) drawNode(s, n);
+  pop();
+}
+
+function drawNode(s, n) {
+  const a = getNodeAlpha(n.id);
+  const isHover = (n.id === hoveredNodeId);
+  const st = s.regionStyle[n.region] || { c:[255,255,255], glow:[180,200,255], r:3.5 };
+  push();
+  translate(n.x, n.y, n.z);
+  noStroke();
+  if (n.isBuddha) {
+    ambientMaterial(st.c[0], st.c[1], st.c[2], 255 * a);
+    sphere(isHover ? 9 : 7);
+    ambientMaterial(st.glow[0], st.glow[1], st.glow[2], 110 * a);
+    sphere(isHover ? 24 : 20);
+    if (st.extraGlow) {
+      ambientMaterial(st.extraGlow[0], st.extraGlow[1], st.extraGlow[2], st.extraGlow[3] * a);
+      sphere(st.extraGlow[4]);
+    }
+  } else if (st.r >= 6) {
+    ambientMaterial(st.c[0], st.c[1], st.c[2], 255 * a);
+    sphere(isHover ? st.r + 3 : st.r);
+    if (st.layers && st.layers[0]) {
+      ambientMaterial(st.glow[0], st.glow[1], st.glow[2], st.layers[0][0] * a);
+      sphere(isHover ? st.r * 2.8 : st.r * 2.4);
+    }
+    if (st.layers && st.layers[1]) {
+      ambientMaterial(st.glow[0] * 0.7, st.glow[1] * 0.7, st.glow[2] * 0.7, st.layers[1][0] * a);
+      sphere(st.layers[1][1]);
+    }
+  } else {
+    ambientMaterial(st.c[0], st.c[1], st.c[2], 255 * a);
+    sphere(isHover ? st.r + 2 : st.r);
+    if (st.glow) {
+      ambientMaterial(st.glow[0], st.glow[1], st.glow[2], 55 * a);
+      sphere(isHover ? st.r * 3 : st.r * 2.3);
+    }
+  }
+  pop();
+}
+
+function drawCurvedEdges(s, type) {
+  const style = s.styles[type];
+  noFill();
+  for (let ei = 0; ei < s._edges.length; ei++) {
+    const e = s._edges[ei];
+    if (e.type !== type) continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e, s);
+    if (alpha < 3) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    if (segLen < 0.5) continue;
+    const dir = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir.copy().mult(perp.dot(dir)));
+    if (perp.mag() < 0.01) perp.set(0, 1, 0);
+    perp.normalize();
+    const side = (ei % 2 === 0) ? 1 : -1;
+    const ctrl = p5.Vector.add(mid, perp.mult(style.bend * segLen * side));
+    const steps = Math.max(16, Math.floor(segLen / 8));
+
+    // 光晕层
+    stroke(style.c[0], style.c[1], style.c[2], alpha * 0.35);
+    strokeWeight(style.w * 2.4);
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+
+    // 主线
+    stroke(style.c[0], style.c[1], style.c[2], alpha);
+    strokeWeight(style.w);
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+}
+
+function drawDashedCurvedEdges(s, type) {
+  const style = s.styles[type];
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== type) continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const alpha = getEdgeAlpha(e, s);
+    if (alpha < 3) continue;
+    const A = createVector(a.x,a.y,a.z);
+    const B = createVector(b.x,b.y,b.z);
+    // 光晕层
+    stroke(style.c[0], style.c[1], style.c[2], alpha * 0.35);
+    strokeWeight(style.w * 2.4);
+    drawDashedLine(A, B, 8, 7);
+    // 主线
+    stroke(style.c[0], style.c[1], style.c[2], alpha);
+    strokeWeight(style.w);
+    drawDashedLine(A, B, 8, 7);
+  }
+}
+
+function drawDashedLine(a, b, dashLen, gapLen) {
+  const d = p5.Vector.sub(b, a);
+  const len = d.mag();
+  if (len < 0.01) return;
+  const dir = d.copy().normalize();
+  let pos = 0;
+  while (pos < len) {
+    const segEnd = Math.min(pos + dashLen, len);
+    const p1 = p5.Vector.add(a, dir.copy().mult(pos));
+    const p2 = p5.Vector.add(a, dir.copy().mult(segEnd));
+    line(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+    pos = segEnd + gapLen;
+  }
+}
+
+function drawExternals(s, type) {
+  const style = s.styles[type];
+  if (!s._externals) return;
+  noFill();
+  for (const ext of s._externals) {
+    const alpha = getExtAlpha(ext) * style.a;
+    const src = ext.from;
+    const d = ext.dir;
+    const pos = createVector(src.x + d.x * 30, src.y + d.y * 220, src.z + d.z * 220);
+    const A = createVector(src.x, src.y, src.z);
+    const B = pos;
+    const seg = p5.Vector.sub(B, A);
+    const segLen = seg.mag();
+    const dir2 = seg.copy().normalize();
+    let perp = createVector(0, 0, 1);
+    if (Math.abs(dir2.z) > 0.9) perp = createVector(0, 1, 0);
+    perp.sub(dir2.copy().mult(perp.dot(dir2)));
+    if (perp.mag() < 0.01) perp.set(1, 0, 0);
+    perp.normalize();
+    const ctrl = p5.Vector.add(p5.Vector.add(A, B).mult(0.5), perp.mult(segLen * 0.15));
+    const steps = 24;
+    // 光晕层
+    stroke(style.c[0], style.c[1], style.c[2], alpha * 0.35);
+    strokeWeight(style.w * 2.4);
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    // 主线
+    stroke(style.c[0], style.c[1], style.c[2], alpha);
+    strokeWeight(style.w);
+    beginShape();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    push();
+    translate(B.x, B.y, B.z);
+    noStroke();
+    ambientMaterial(style.c[0], style.c[1], style.c[2], 200 * getExtAlpha(ext));
+    sphere(2.5);
+    pop();
+  }
+}
+
+function drawGushi(s) {
+  // struct：白粗线，也加光晕
+  const stStruct = s.styles.struct;
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== 'struct') continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    stroke(stStruct.c[0], stStruct.c[1], stStruct.c[2], stStruct.a * 0.35);
+    strokeWeight(stStruct.w * 2.0);
+    line(a.x, a.y, a.z, b.x, b.y, b.z);
+    stroke(stStruct.c[0], stStruct.c[1], stStruct.c[2], stStruct.a);
+    strokeWeight(stStruct.w);
+    line(a.x, a.y, a.z, b.x, b.y, b.z);
+  }
+
+  // pair
+  const stPair = s.styles.pair;
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== 'pair') continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x, mid.y + 50, mid.z);
+    const steps = 20;
+    stroke(stPair.c[0], stPair.c[1], stPair.c[2], stPair.a * 0.35);
+    strokeWeight(stPair.w * 2.0);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    stroke(stPair.c[0], stPair.c[1], stPair.c[2], stPair.a);
+    strokeWeight(stPair.w);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+
+  // tone
+  const stTone = s.styles.tone;
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== 'tone') continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x + 40, mid.y + 60, mid.z);
+    const steps = 24;
+    stroke(stTone.c[0], stTone.c[1], stTone.c[2], stTone.a * 0.35);
+    strokeWeight(stTone.w * 2.0);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    stroke(stTone.c[0], stTone.c[1], stTone.c[2], stTone.a);
+    strokeWeight(stTone.w);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+
+  // echo
+  const stEcho = s.styles.echo;
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== 'echo') continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x + 30, mid.y, mid.z + 20);
+    const steps = 20;
+    stroke(stEcho.c[0], stEcho.c[1], stEcho.c[2], stEcho.a * 0.35);
+    strokeWeight(stEcho.w * 2.0);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    stroke(stEcho.c[0], stEcho.c[1], stEcho.c[2], stEcho.a);
+    strokeWeight(stEcho.w);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+
+  // seq（环）
+  const stSeq = s.styles.seq;
+  noFill();
+  for (let i = 1; i < s.seqOrder.length; i++) {
+    const a = s._nodeMap[s.seqOrder[i-1]];
+    const b = s._nodeMap[s.seqOrder[i]];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    let ctrl;
+    if (Math.abs(a.y) < 1 && Math.abs(b.y) < 1) {
+      ctrl = createVector(mid.x, mid.y + 60, mid.z);
+    } else ctrl = mid;
+    const steps = 24;
+    // 光晕层
+    stroke(stSeq.c[0], stSeq.c[1], stSeq.c[2], stSeq.a * 0.35);
+    strokeWeight(stSeq.w * 2.4);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    // 主线
+    stroke(stSeq.c[0], stSeq.c[1], stSeq.c[2], stSeq.a);
+    strokeWeight(stSeq.w);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+
+  // symbol
+  const stSym = s.styles.symbol;
+  noFill();
+  for (const e of s._edges) {
+    if (e.type !== 'symbol') continue;
+    const a = s._nodeMap[e.from], b = s._nodeMap[e.to];
+    if (!a || !b) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(b.x, b.y, b.z);
+    const mid = p5.Vector.add(A, B).mult(0.5);
+    const ctrl = createVector(mid.x, mid.y - 40, mid.z);
+    const steps = 28;
+    stroke(stSym.c[0], stSym.c[1], stSym.c[2], stSym.a * 0.35);
+    strokeWeight(stSym.w * 2.0);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+    stroke(stSym.c[0], stSym.c[1], stSym.c[2], stSym.a);
+    strokeWeight(stSym.w);
+    beginShape();
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, u = 1 - t;
+      vertex(u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+             u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+             u*u*A.z+2*u*t*ctrl.z+t*t*B.z);
+    }
+    endShape();
+  }
+
+  // self（自指弧，虚线）
+  const stSelf = s.styles.self;
+  const sources = ['回旋的曲律', '缠绵的论述'];
+  for (let si = 0; si < sources.length; si++) {
+    const a = s._nodeMap[sources[si]];
+    const target = s._nodeMap['潮水'];
+    if (!a || !target) continue;
+    const A = createVector(a.x, a.y, a.z);
+    const B = createVector(target.x, target.y, target.z);
+    const side = si === 0 ? -1 : 1;
+    const ctrl = createVector((A.x + B.x)/2 + side * 260,
+                              (A.y + B.y)/2 + 320,
+                              (A.z + B.z)/2);
+    const steps = 60;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, u = 1 - t;
+      pts.push(createVector(
+        u*u*A.x+2*u*t*ctrl.x+t*t*B.x,
+        u*u*A.y+2*u*t*ctrl.y+t*t*B.y,
+        u*u*A.z+2*u*t*ctrl.z+t*t*B.z));
+    }
+    // 光晕层
+    stroke(stSelf.c[0], stSelf.c[1], stSelf.c[2], stSelf.a * 0.35);
+    strokeWeight(stSelf.w * 2.0);
+    for (let i = 1; i < pts.length; i++) {
+      if (i % 4 < 2) line(pts[i-1].x, pts[i-1].y, pts[i-1].z, pts[i].x, pts[i].y, pts[i].z);
+    }
+    // 主线
+    stroke(stSelf.c[0], stSelf.c[1], stSelf.c[2], stSelf.a);
+    strokeWeight(stSelf.w);
+    for (let i = 1; i < pts.length; i++) {
+      if (i % 4 < 2) line(pts[i-1].x, pts[i-1].y, pts[i-1].z, pts[i].x, pts[i].y, pts[i].z);
+    }
+  }
+}
+
+const DIM = 0.06;
+const NODE_DIM = 0.08;
+const NODE_NEIGHBOR = 0.9;
+
+function getEdgeAlpha(e, s) {
+  const base = s.styles[e.type].a;
+  if (filter.type && e.type !== filter.type) return base * DIM;
+  if (filter.node && e.from !== filter.node && e.to !== filter.node) return base * DIM;
+  return base;
+}
+
+function getNodeAlpha(id) {
+  if (viewMode !== 'poem' || currentSceneIdx === null) return 1;
+  const s = SCENES[currentSceneIdx];
+  if (filter.type) {
+    const touched = s._edges.some(e =>
+      e.type === filter.type && (e.from === id || e.to === id));
+    return touched ? 1 : NODE_DIM;
+  }
+  if (filter.node) {
+    if (id === filter.node) return 1;
+    const adj = s._edges.some(e =>
+      (e.from === id && e.to === filter.node) ||
+      (e.to === id && e.from === filter.node));
+    return adj ? NODE_NEIGHBOR : NODE_DIM;
+  }
+  return 1;
+}
+
+function getExtAlpha(ext) {
+  if (filter.type && filter.type !== 'inter') return 0.06;
+  if (filter.node && ext.from.id !== filter.node) return 0.06;
+  return 1;
+}
+
+function worldToScreen(x, y, z) {
+  if (!R || !R.uMVMatrix || !R.uPMatrix) return null;
+  const mv = R.uMVMatrix.mat4, pm = R.uPMatrix.mat4;
+  const vx = mv[0]*x + mv[4]*y + mv[8]*z  + mv[12];
+  const vy = mv[1]*x + mv[5]*y + mv[9]*z  + mv[13];
+  const vz = mv[2]*x + mv[6]*y + mv[10]*z + mv[14];
+  const vw = mv[3]*x + mv[7]*y + mv[11]*z + mv[15];
+  const cx = pm[0]*vx + pm[4]*vy + pm[8]*vz  + pm[12]*vw;
+  const cy = pm[1]*vx + pm[5]*vy + pm[9]*vz  + pm[13]*vw;
+  const cz = pm[2]*vx + pm[6]*vy + pm[10]*vz + pm[14]*vw;
+  const cw = pm[3]*vx + pm[7]*vy + pm[11]*vz + pm[15]*vw;
+  if (!isFinite(cw) || cw <= 0.0001) return null;
+  return { x: ((cx/cw)*0.5+0.5)*width, y: (-(cy/cw)*0.5+0.5)*height, depth: cw };
+}
+
+function placeLabel(el, sp, yOff = 0, extra = 1) {
+  if (!sp || sp.x < -300 || sp.x > width + 300 || sp.y < -300 || sp.y > height + 300) {
+    el.style.opacity = '0'; return;
+  }
+  el.style.left = sp.x.toFixed(1) + 'px';
+  el.style.top  = (sp.y + yOff).toFixed(1) + 'px';
+  const a = Math.max(0.15, Math.min(1, 1 - (sp.depth - 600) / 7500));
+  el.style.opacity = (a * extra).toFixed(3);
+}
+
+function rebuildLabels() {
+  const c = document.getElementById('labels');
+  c.innerHTML = '';
+  for (const k in labelEls) delete labelEls[k];
+  if (viewMode === 'constellation') {
+    for (let i = 0; i < SCENES.length; i++) {
+      const s = SCENES[i];
+      const nm = document.createElement('div');
+      nm.className = 'poem-name';
+      const hue = s.hue;
+      nm.style.color = `rgb(${hue[0]},${hue[1]},${hue[2]})`;
+      nm.style.textShadow = `0 0 20px rgb(${hue[0]},${hue[1]},${hue[2]}), 0 0 40px rgba(${hue[0]},${hue[1]},${hue[2]},0.7)`;
+      nm.innerHTML = `${s.title}<span class="sub">${s.subtitle}</span>`;
+      nm.onmouseenter = () => { hoveredPoemIdx = i; };
+      nm.onmouseleave = () => { if (hoveredPoemIdx === i) hoveredPoemIdx = null; };
+      nm.onclick = () => enterPoem(i);
+      c.appendChild(nm);
+      labelEls['poem_' + i] = nm;
+      for (const n of s._nodes) {
+        const st = s.regionStyle[n.region] || { c:[255,255,255], r:3.5 };
+        const isCore = st.r >= 6 || n.isBuddha;
+        const el = document.createElement('div');
+        el.className = 'label node-label mini' + (isCore ? ' core' : '');
+        const cc = st.c;
+        el.style.color = `rgb(${cc[0]},${cc[1]},${cc[2]})`;
+        el.style.textShadow = `0 0 6px rgb(${cc[0]},${cc[1]},${cc[2]}), 0 0 14px rgba(${cc[0]},${cc[1]},${cc[2]},0.7), 0 0 3px #000`;
+        el.textContent = n.id;
+        c.appendChild(el);
+        labelEls[`mini_${i}_${n.id}`] = el;
+      }
+    }
+  } else {
+    const s = SCENES[currentSceneIdx];
+    for (const n of s._nodes) {
+      const el = document.createElement('div');
+      const st = s.regionStyle[n.region] || { c:[255,255,255], r:3.5 };
+      const isCore = st.r >= 6 || n.isBuddha;
+      const lc = (s.labelCSS && s.labelCSS[n.region]) || {};
+      el.className = 'label node-label' + (isCore ? ' core' : '');
+      el.style.color = lc.color || `rgb(${st.c[0]},${st.c[1]},${st.c[2]})`;
+      el.style.textShadow = lc.shadow ||
+        `0 0 8px rgb(${st.c[0]},${st.c[1]},${st.c[2]}), ` +
+        `0 0 18px rgba(${st.c[0]},${st.c[1]},${st.c[2]},0.7), 0 0 3px #000`;
+      if (lc.italic) el.style.fontStyle = 'italic';
+      if (lc.weight) el.style.fontWeight = lc.weight;
+      if (lc.size) el.style.fontSize = lc.size + 'px';
+      if (lc.letterSpacing) el.style.letterSpacing = lc.letterSpacing;
+      el.textContent = n.id;
+      c.appendChild(el);
+      labelEls['node_' + n.id] = el;
+    }
+    if (s._externals) {
+      for (const ext of s._externals) {
+        const el = document.createElement('div');
+        el.className = 'label ext-label';
+        el.textContent = ext.id;
+        c.appendChild(el);
+        labelEls['ext_' + ext.id] = el;
+      }
+    }
+  }
+}
+
+function updateLabels() {
+  cachedScreen = {};
+  if (viewMode === 'constellation') {
+    for (let i = 0; i < SCENES.length; i++) {
+      const s = SCENES[i];
+      const scale = s._thumbScale;
+      const [ux, uy, uz] = s.universe;
+      const nmEl = labelEls['poem_' + i];
+      if (nmEl) {
+        const titleY = uy + THUMB_RADIUS * 1.08;
+        const sp = worldToScreen(ux, titleY, uz);
+        placeLabel(nmEl, sp, 0, 1);
+      }
+      for (const n of s._nodes) {
+        const el = labelEls[`mini_${i}_${n.id}`];
+        if (!el) continue;
+        const wx = ux + n.x * scale;
+        const wy = uy + n.y * scale;
+        const wz = uz + n.z * scale;
+        const sp = worldToScreen(wx, wy, wz);
+        const st = s.regionStyle[n.region] || { r:3.5 };
+        const yOff = st.r >= 6 ? -12 : -10;
+        placeLabel(el, sp, yOff, 0.9);
+      }
+    }
+  } else {
+    const s = SCENES[currentSceneIdx];
+    const [ux, uy, uz] = s.universe;
+    for (const n of s._nodes) {
+      const sp = worldToScreen(n.x + ux, n.y + uy, n.z + uz);
+      cachedScreen[n.id] = sp;
+      const el = labelEls['node_' + n.id];
+      if (!el) continue;
+      el.classList.toggle('hovered', n.id === hoveredNodeId);
+      const st = s.regionStyle[n.region] || { r:3.5 };
+      const yOff = st.r >= 6 ? -30 : -20;
+      placeLabel(el, sp, yOff, getNodeAlpha(n.id));
+    }
+    if (s._externals) {
+      for (const ext of s._externals) {
+        const src = ext.from;
+        const d = ext.dir;
+        const pos = createVector(src.x + d.x * 30 + ux, src.y + d.y * 220 + uy, src.z + d.z * 220 + uz);
+        const sp = worldToScreen(pos.x, pos.y, pos.z);
+        placeLabel(labelEls['ext_' + ext.id], sp, -12, getExtAlpha(ext) * 0.85);
+      }
+    }
+  }
+}
+
+function updateHoverFromCache() {
+  if (viewMode !== 'poem') { hoveredNodeId = null; return; }
+  if (mouseScreen.x < -1000) { hoveredNodeId = null; return; }
+  let best = null, bestD = 30;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mouseScreen.x, sp.y - mouseScreen.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  hoveredNodeId = best;
+}
+
+function enterPoem(idx) {
+  currentSceneIdx = idx;
+  viewMode = 'poem';
+  const s = SCENES[idx];
+  const [ux, uy, uz] = s.universe;
+  cam.center = [ux, uy, uz];
+  cam.targetCenter = [ux, uy, uz];
+  cam.radius = Math.max(900, s._localRadius * 3.0);
+  cam.targetRadius = cam.radius;
+  cam.theta = 0.3;
+  cam.phi = 0.15;
+  filter = { type:null, node:null };
+  document.getElementById('poem-actions').classList.add('on');
+  document.getElementById('legend').classList.add('on');
+  document.getElementById('hud').classList.add('on');
+  rebuildLabels();
+  updateLegend();
+  updateStatus();
+}
+
+function exitPoem() {
+  viewMode = 'constellation';
+  currentSceneIdx = null;
+  cam.center = [0, 0, 0];
+  cam.targetCenter = [0, 0, 0];
+  cam.radius = 10500;
+  cam.targetRadius = 10500;
+  cam.theta = 0.4;
+  cam.phi = 0.25;
+  filter = { type:null, node:null };
+  document.getElementById('poem-actions').classList.remove('on');
+  document.getElementById('legend').classList.remove('on');
+  document.getElementById('hud').classList.remove('on');
+  document.getElementById('doc-panel').classList.remove('on');
+  document.getElementById('status').classList.remove('on');
+  rebuildLabels();
+}
+
+function updateLegend() {
+  if (viewMode !== 'poem') return;
+  const s = SCENES[currentSceneIdx];
+  const container = document.getElementById('legend-items');
+  container.innerHTML = '';
+  for (const t in s.typeLabels) {
+    const st = s.styles[t];
+    if (!st) continue;
+    const hex = `rgb(${st.c[0]},${st.c[1]},${st.c[2]})`;
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.dataset.type = t;
+    item.innerHTML = `<span class="swatch ${st.dashed?'dash':''}" style="${st.dashed?`color:${hex}`:`background:${hex}`}"></span><span class="name">${s.typeLabels[t]}</span>`;
+    item.onclick = () => {
+      filter.type = (filter.type === t) ? null : t;
+      filter.node = null;
+      updateLegendActive(); updateStatus();
+    };
+    container.appendChild(item);
+  }
+}
+
+function updateLegendActive() {
+  document.querySelectorAll('#legend .item').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === filter.type);
+  });
+}
+
+function updateStatus() {
+  const s = document.getElementById('status');
+  const v = document.getElementById('status-val');
+  if (!filter.type && !filter.node) { s.classList.remove('on'); return; }
+  s.classList.add('on');
+  const sc = SCENES[currentSceneIdx];
+  if (filter.type) v.textContent = sc.typeLabels[filter.type] || filter.type;
+  if (filter.node) v.textContent = filter.node;
+}
+
+function updateDoc() {
+  if (currentSceneIdx === null) return;
+  const s = SCENES[currentSceneIdx];
+  document.getElementById('doc-title').textContent = s.title;
+  const body = document.getElementById('doc-body');
+  if (docTab === 'poem') {
+    body.innerHTML = `<div class="poem-text">${escapeHtml(s.poemText)}</div>`;
+  } else {
+    body.innerHTML = `<div class="comment">${escapeHtml(s.comment)}</div>`;
+  }
+  document.getElementById('tab-poem').classList.toggle('active', docTab === 'poem');
+  document.getElementById('tab-comment').classList.toggle('active', docTab === 'comment');
+  body.scrollTop = 0;
+}
+
+function escapeHtml(t) {
+  return t.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+function bindInteractions() {
+  canvasEl.addEventListener('mousedown', e => {
+    if (e.button === 2) {
+      e.preventDefault();
+      isPanning = true;
+      lastMouse = { x: e.clientX, y: e.clientY };
+    } else if (e.button === 0 && e.target === canvasEl) {
+      mouseDownPos = { x: e.clientX, y: e.clientY };
+      lastMouse = { x: e.clientX, y: e.clientY };
+      isDragging = true;
+    }
+  });
+  canvasEl.addEventListener('contextmenu', e => e.preventDefault());
+
+  window.addEventListener('mousemove', e => {
+    const rect = canvasEl.getBoundingClientRect();
+    mouseScreen.x = e.clientX - rect.left;
+    mouseScreen.y = e.clientY - rect.top;
+
+    if (isPanning) {
+      const dx = e.clientX - lastMouse.x;
+      const dy = e.clientY - lastMouse.y;
+      const cph = Math.cos(cam.phi);
+      const sph = Math.sin(cam.phi);
+      const cth = Math.cos(cam.theta);
+      const sth = Math.sin(cam.theta);
+      const dir = createVector(cph * sth, sph, cph * cth);
+      const forward = dir.copy().mult(-1);
+      const worldUp = createVector(0, 1, 0);
+      const right = p5.Vector.cross(forward, worldUp).normalize();
+      const upCam = p5.Vector.cross(right, forward).normalize();
+      const panScale = cam.radius * 0.0015;
+      const ox = -right.x * dx * panScale + upCam.x * dy * panScale;
+      const oy = -right.y * dx * panScale + upCam.y * dy * panScale;
+      const oz = -right.z * dx * panScale + upCam.z * dy * panScale;
+      cam.center[0] += ox; cam.center[1] += oy; cam.center[2] += oz;
+      cam.targetCenter[0] += ox; cam.targetCenter[1] += oy; cam.targetCenter[2] += oz;
+      lastMouse = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    if (isDragging) {
+      const dx = e.clientX - lastMouse.x;
+      const dy = e.clientY - lastMouse.y;
+      cam.theta -= dx * 0.006;
+      cam.phi += dy * 0.006;
+      cam.phi = Math.max(-1.4, Math.min(1.4, cam.phi));
+      lastMouse = { x: e.clientX, y: e.clientY };
+    }
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (isPanning) isPanning = false;
+    if (mouseDownPos) {
+      const dx = e.clientX - mouseDownPos.x;
+      const dy = e.clientY - mouseDownPos.y;
+      if (Math.hypot(dx, dy) < 5 && e.target === canvasEl) {
+        handleCanvasClick(e.clientX, e.clientY);
+      }
+    }
+    mouseDownPos = null;
+    isDragging = false;
+  });
+
+  canvasEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1.12 : 0.89;
+    cam.targetRadius = Math.max(200, Math.min(18000, cam.targetRadius * factor));
+  }, { passive: false });
+
+  canvasEl.addEventListener('mouseleave', () => {
+    mouseScreen.x = -99999; mouseScreen.y = -99999;
+  });
+}
+
+function handleCanvasClick(clientX, clientY) {
+  if (viewMode !== 'poem') return;
+  const rect = canvasEl.getBoundingClientRect();
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  let bestId = null, bestDist = 30;
+  for (const id in cachedScreen) {
+    const sp = cachedScreen[id];
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - mx, sp.y - my);
+    if (d < bestD) { bestD = d; bestId = id; }
+  }
+  if (bestId) {
+    filter.node = (filter.node === bestId) ? null : bestId;
+    filter.type = null;
+  } else {
+    filter.type = null; filter.node = null;
+  }
+  updateLegendActive(); updateStatus();
+}
+
+function bindUI() {
+  document.getElementById('back-btn').onclick = exitPoem;
+  document.getElementById('doc-btn').onclick = () => {
+    const p = document.getElementById('doc-panel');
+    p.classList.toggle('on');
+    if (p.classList.contains('on')) updateDoc();
+  };
+  document.getElementById('doc-close').onclick = () => {
+    document.getElementById('doc-panel').classList.remove('on');
+  };
+  document.getElementById('tab-poem').onclick = () => { docTab = 'poem'; updateDoc(); };
+  document.getElementById('tab-comment').onclick = () => { docTab = 'comment'; updateDoc(); };
+  document.getElementById('status-reset').onclick = () => {
+    filter.type = null; filter.node = null;
+    updateLegendActive(); updateStatus();
+  };
+}
+
+function keyPressed() {
+  if (keyCode === 27) {
+    if (document.getElementById('doc-panel').classList.contains('on')) {
+      document.getElementById('doc-panel').classList.remove('on');
+      return;
+    }
+    if (viewMode === 'poem') {
+      if (filter.type || filter.node) {
+        filter.type = null; filter.node = null;
+        updateLegendActive(); updateStatus();
+      } else {
+        exitPoem();
+      }
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>
